@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://praxis.dev/schemas/project-config.schema.json",
+  "title": "Normalized Praxis project configuration v1",
+  "description": "Logical model produced after parsing .praxis.toml.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "project_id",
+    "standard_version",
+    "profile",
+    "modules",
+    "paths",
+    "authority"
+  ],
+  "properties": {
+    "schema": {"const": "praxis/project-config/v1"},
+    "project_id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+    },
+    "standard_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+    },
+    "profile": {"enum": ["minimal", "standard", "high-assurance", "regulated"]},
+    "modules": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^v[0-9]+$"
+      }
+    },
+    "paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent_contract", "policy", "decisions", "specs"],
+      "properties": {
+        "agent_contract": {"$ref": "#/$defs/relative_path"},
+        "policy": {"$ref": "#/$defs/relative_path"},
+        "decisions": {"$ref": "#/$defs/relative_path"},
+        "specs": {"$ref": "#/$defs/relative_path"}
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "fail_closed"],
+      "properties": {
+        "provider": {"type": "string", "minLength": 3},
+        "fail_closed": {"const": true}
+      }
+    }
+  },
+  "$defs": {
+    "relative_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!\\.{1,2}(?:/|$))(?!.*(?:^|/)\\.{1,2}(?:/|$))[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+    }
+  }
+}

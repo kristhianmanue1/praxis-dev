@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://praxis.dev/schemas/plan.schema.json",
+  "title": "Praxis governed mutation plan v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "operation_id",
+    "operation",
+    "project",
+    "observed_state",
+    "allowed_paths",
+    "preconditions",
+    "actions",
+    "postconditions",
+    "required_authority",
+    "created_at",
+    "expires_at",
+    "canonicalization",
+    "plan_fingerprint"
+  ],
+  "properties": {
+    "schema": {"const": "praxis/mutation-plan/v1"},
+    "operation_id": {"type": "string", "minLength": 8},
+    "operation": {"type": "string", "minLength": 3},
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_id", "root_digest", "remote", "head"],
+      "properties": {
+        "project_id": {"$ref": "#/$defs/project_id"},
+        "root_digest": {"$ref": "#/$defs/digest"},
+        "remote": {"type": ["string", "null"]},
+        "head": {"type": ["string", "null"]}
+      }
+    },
+    "observed_state": {
+      "type": "object",
+      "required": ["fingerprint"],
+      "properties": {
+        "fingerprint": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": true
+    },
+    "allowed_paths": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/relative_path"}
+    },
+    "preconditions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/condition"}
+    },
+    "actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "action_id",
+          "kind",
+          "path",
+          "expected_before_sha256",
+          "content_sha256"
+        ],
+        "properties": {
+          "action_id": {"type": "string", "minLength": 3},
+          "kind": {"enum": ["create", "replace-managed", "transition"]},
+          "path": {"$ref": "#/$defs/relative_path"},
+          "expected_before_sha256": {"$ref": "#/$defs/nullable_digest"},
+          "content_sha256": {"$ref": "#/$defs/nullable_digest"}
+        },
+        "allOf": [
+          {
+            "if": {"properties": {"kind": {"const": "create"}}},
+            "then": {
+              "properties": {
+                "expected_before_sha256": {"type": "null"},
+                "content_sha256": {"$ref": "#/$defs/digest"}
+              }
+            },
+            "else": {
+              "properties": {
+                "expected_before_sha256": {"$ref": "#/$defs/digest"},
+                "content_sha256": {"$ref": "#/$defs/digest"}
+              }
+            }
+          }
+        ]
+      }
+    },
+    "postconditions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/condition"}
+    },
+    "required_authority": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "expires_at": {
+      "oneOf": [{"type": "string", "format": "date-time"}, {"type": "null"}]
+    },
+    "canonicalization": {"const": "RFC8785"},
+    "plan_fingerprint": {"$ref": "#/$defs/digest"}
+  },
+  "$defs": {
+    "project_id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+    },
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "nullable_digest": {
+      "oneOf": [{"$ref": "#/$defs/digest"}, {"type": "null"}]
+    },
+    "relative_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!\\.{1,2}(?:/|$))(?!.*(?:^|/)\\.{1,2}(?:/|$))[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+    },
+    "condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "subject", "expected"],
+      "properties": {
+        "kind": {"type": "string", "minLength": 3},
+        "subject": {"type": "string", "minLength": 1},
+        "expected": {}
+      }
+    }
+  }
+}
