@@ -1,0 +1,22 @@
+schema = "praxis/project-config/v1"
+project_id = "4f352068-06ad-5ea5-98c3-c27e7b84d47e"
+standard_version = "0.1.0-draft.0"
+profile = "standard"
+
+[modules]
+core = "v1"
+agent_policy = "v1"
+work = "v1"
+adrg = "v1"
+specs = "v1"
+evidence = "v1"
+
+[paths]
+agent_contract = "AGENTS.md"
+policy = "docs/modulos/politica-agentes.md"
+decisions = "docs/decisions"
+specs = "docs/specs"
+
+[authority]
+provider = "unconfigured"
+fail_closed = true

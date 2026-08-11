@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://praxis.dev/schemas/adr-metadata.schema.json",
+  "title": "Praxis ADR metadata v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "id",
+    "title",
+    "status",
+    "created_at",
+    "origin",
+    "authors",
+    "decision_owners",
+    "assurance_profile",
+    "supersedes",
+    "superseded_by",
+    "related",
+    "decision_core_sha256",
+    "transitions"
+  ],
+  "properties": {
+    "schema": {"const": "praxis/adr-metadata/v1"},
+    "id": {"type": "string", "pattern": "^ADR-[0-9]{4}$"},
+    "title": {"type": "string", "minLength": 5, "maxLength": 160},
+    "status": {"$ref": "#/$defs/status"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "origin": {"enum": ["human", "agent_assisted", "agent_generated"]},
+    "authors": {"$ref": "#/$defs/non_empty_unique_strings"},
+    "decision_owners": {"$ref": "#/$defs/non_empty_unique_strings"},
+    "assurance_profile": {
+      "enum": ["minimal", "standard", "high-assurance", "regulated"]
+    },
+    "supersedes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/adr_id"}
+    },
+    "superseded_by": {
+      "oneOf": [{"$ref": "#/$defs/adr_id"}, {"type": "null"}]
+    },
+    "related": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/adr_id"}
+    },
+    "decision_core_sha256": {"$ref": "#/$defs/nullable_digest"},
+    "transitions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/transition"}
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {"enum": ["accepted", "superseded", "retired"]}
+        }
+      },
+      "then": {
+        "properties": {
+          "decision_core_sha256": {"$ref": "#/$defs/digest"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"status": {"const": "superseded"}}},
+      "then": {
+        "properties": {"superseded_by": {"$ref": "#/$defs/adr_id"}}
+      }
+    }
+  ],
+  "$defs": {
+    "status": {
+      "enum": [
+        "draft",
+        "proposed",
+        "accepted",
+        "rejected",
+        "withdrawn",
+        "superseded",
+        "retired"
+      ]
+    },
+    "adr_id": {"type": "string", "pattern": "^ADR-[0-9]{4}$"},
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "nullable_digest": {
+      "oneOf": [{"$ref": "#/$defs/digest"}, {"type": "null"}]
+    },
+    "non_empty_unique_strings": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to",
+        "at",
+        "authority_receipt",
+        "authority_receipt_sha256"
+      ],
+      "properties": {
+        "from": {
+          "oneOf": [{"$ref": "#/$defs/status"}, {"type": "null"}]
+        },
+        "to": {"$ref": "#/$defs/status"},
+        "at": {"type": "string", "format": "date-time"},
+        "authority_receipt": {
+          "oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}]
+        },
+        "authority_receipt_sha256": {"$ref": "#/$defs/nullable_digest"}
+      }
+    }
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "schema": "praxis/standard-manifest/v1",
+  "standard_id": "praxis/project-governance",
+  "version": "0.1.0-draft.0",
+  "status": "draft",
+  "provider_neutral": true,
+  "canonical_agent_file": "AGENTS.md",
+  "config_file": ".praxis.toml",
+  "allowed_root_markdown": [
+    "AGENTS.md",
+    "README.md"
+  ],
+  "consumer_requirements": {
+    "config_file": ".praxis.toml",
+    "agent_contract_default": "AGENTS.md",
+    "paths_resolved_from_config": ["policy", "decisions", "specs"],
+    "conditional_directories": {
+      "adrg": "decisions",
+      "specs": "specs"
+    }
+  },
+  "reference_repository_required_paths": [
+    {"path": "AGENTS.md", "kind": "always_on", "max_lines": 200},
+    {"path": "README.md", "kind": "entrypoint", "max_lines": 500},
+    {"path": ".praxis.toml", "kind": "config", "max_lines": 200},
+    {"path": "docs/fundamentos.md", "kind": "foundation", "max_lines": 800},
+    {"path": "docs/estandar.md", "kind": "standard", "max_lines": 800},
+    {"path": "docs/arquitectura.md", "kind": "architecture", "max_lines": 800},
+    {"path": "docs/modelo-autoridad.md", "kind": "authority", "max_lines": 800},
+    {"path": "docs/contrato-cli.md", "kind": "interface", "max_lines": 800},
+    {"path": "docs/conformidad.md", "kind": "conformance", "max_lines": 800},
+    {"path": "docs/distribucion-homebrew.md", "kind": "distribution", "max_lines": 800},
+    {"path": "docs/adopcion.md", "kind": "adoption", "max_lines": 800},
+    {"path": "docs/modulos/politica-agentes.md", "kind": "module", "max_lines": 800},
+    {"path": "docs/modulos/adrg.md", "kind": "module", "max_lines": 800},
+    {"path": "docs/modulos/specs.md", "kind": "module", "max_lines": 800},
+    {"path": "schemas/project-config.schema.json", "kind": "schema", "max_lines": 800},
+    {"path": "schemas/adr-metadata.schema.json", "kind": "schema", "max_lines": 800},
+    {"path": "schemas/spec-metadata.schema.json", "kind": "schema", "max_lines": 800},
+    {"path": "schemas/plan.schema.json", "kind": "schema", "max_lines": 800},
+    {"path": "schemas/authority-receipt.schema.json", "kind": "schema", "max_lines": 800},
+    {"path": "schemas/authority-consumption.schema.json", "kind": "schema", "max_lines": 800},
+    {"path": "schemas/audit-result.schema.json", "kind": "schema", "max_lines": 800},
+    {"path": "packaging/homebrew/praxis.rb.tpl", "kind": "packaging", "max_lines": 400},
+    {"path": "scripts/check_repo.py", "kind": "gate", "max_lines": 800}
+  ],
+  "profiles": {
+    "minimal": ["core", "agent_policy"],
+    "standard": ["core", "agent_policy", "work", "adrg", "evidence"],
+    "high-assurance": [
+      "core",
+      "agent_policy",
+      "work",
+      "adrg",
+      "specs",
+      "evidence",
+      "authority"
+    ],
+    "regulated": [
+      "core",
+      "agent_policy",
+      "work",
+      "adrg",
+      "specs",
+      "evidence",
+      "authority"
+    ]
+  },
+  "modules": {
+    "core": "v1",
+    "agent_policy": "v1",
+    "work": "v1",
+    "adrg": "v1",
+    "specs": "v1",
+    "evidence": "v1",
+    "authority": "v1",
+    "adapters": "v1"
+  },
+  "module_dependencies": {
+    "core": [],
+    "agent_policy": ["core"],
+    "work": ["core", "agent_policy"],
+    "adrg": ["core", "evidence"],
+    "specs": ["core", "adrg", "evidence"],
+    "evidence": ["core"],
+    "authority": ["core", "evidence"],
+    "adapters": ["core"]
+  },
+  "schemas": {
+    "project_config": "schemas/project-config.schema.json",
+    "adr_metadata": "schemas/adr-metadata.schema.json",
+    "spec_metadata": "schemas/spec-metadata.schema.json",
+    "plan": "schemas/plan.schema.json",
+    "authority_receipt": "schemas/authority-receipt.schema.json",
+    "authority_consumption": "schemas/authority-consumption.schema.json",
+    "audit_result": "schemas/audit-result.schema.json"
+  },
+  "adr": {
+    "directory": "docs/decisions",
+    "filename_pattern": "^ADR-[0-9]{4}-[a-z0-9-]+\\.md$",
+    "statuses": [
+      "draft",
+      "proposed",
+      "accepted",
+      "rejected",
+      "withdrawn",
+      "superseded",
+      "retired"
+    ]
+  }
+}
