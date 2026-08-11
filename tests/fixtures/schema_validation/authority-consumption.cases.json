@@ -1,0 +1,39 @@
+{
+  "schema_file": "authority-consumption.schema.json",
+  "_note": "SYNTHETIC shape-only data; not a real consumption record or authority.",
+  "cases": [
+    {
+      "name": "positive-synthetic",
+      "valid": true,
+      "instance": {
+        "schema": "praxis/authority-consumption/v1",
+        "receipt_id": "synthetic-receipt-0001",
+        "provider": "github-oauth-web/v1",
+        "project_id": "4f352068-06ad-5ea5-98c3-c27e7b84d47e",
+        "operation_id": "synthetic-op-0001",
+        "plan_fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "payload_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "consumed_at": "2026-08-11T11:02:19Z",
+        "consumer_identity": "synthetic-consumer",
+        "result": "consumed"
+      }
+    },
+    {
+      "name": "result-not-consumed",
+      "valid": false,
+      "code": "const",
+      "instance": {
+        "schema": "praxis/authority-consumption/v1",
+        "receipt_id": "synthetic-receipt-0001",
+        "provider": "github-oauth-web/v1",
+        "project_id": "4f352068-06ad-5ea5-98c3-c27e7b84d47e",
+        "operation_id": "synthetic-op-0001",
+        "plan_fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "payload_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "consumed_at": "2026-08-11T11:02:19Z",
+        "consumer_identity": "synthetic-consumer",
+        "result": "pending"
+      }
+    }
+  ]
+}

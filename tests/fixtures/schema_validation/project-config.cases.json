@@ -1,0 +1,58 @@
+{
+  "schema_file": "project-config.schema.json",
+  "cases": [
+    {
+      "name": "positive",
+      "valid": true,
+      "instance": {
+        "schema": "praxis/project-config/v1",
+        "project_id": "4f352068-06ad-5ea5-98c3-c27e7b84d47e",
+        "standard_version": "0.1.0-draft.1",
+        "profile": "standard",
+        "lifecycle": "development",
+        "modules": {"core": "v1", "agent_policy": "v1"},
+        "paths": {
+          "agent_contract": "AGENTS.md",
+          "policy": "docs/modulos/politica-agentes.md",
+          "decisions": "docs/decisions",
+          "specs": "docs/specs"
+        },
+        "authority": {"provider": "github-oauth-web/v1", "enforcement": "advisory"}
+      }
+    },
+    {
+      "name": "profile-bogus",
+      "valid": false,
+      "code": "enum",
+      "instance": {
+        "schema": "praxis/project-config/v1",
+        "project_id": "4f352068-06ad-5ea5-98c3-c27e7b84d47e",
+        "standard_version": "0.1.0-draft.1",
+        "profile": "bogus",
+        "lifecycle": "development",
+        "modules": {"core": "v1"},
+        "paths": {
+          "agent_contract": "AGENTS.md",
+          "policy": "docs/modulos/politica-agentes.md",
+          "decisions": "docs/decisions",
+          "specs": "docs/specs"
+        },
+        "authority": {"provider": "github-oauth-web/v1", "enforcement": "advisory"}
+      }
+    },
+    {
+      "name": "missing-required-paths",
+      "valid": false,
+      "code": "required",
+      "instance": {
+        "schema": "praxis/project-config/v1",
+        "project_id": "4f352068-06ad-5ea5-98c3-c27e7b84d47e",
+        "standard_version": "0.1.0-draft.1",
+        "profile": "minimal",
+        "lifecycle": "development",
+        "modules": {"core": "v1", "agent_policy": "v1"},
+        "authority": {"provider": "github-oauth-web/v1", "enforcement": "advisory"}
+      }
+    }
+  ]
+}
