@@ -4,6 +4,9 @@ Grammar (per ``docs/contrato-cli.md``)::
 
     praxis project status [repo] [--format json]
     praxis project audit  [repo] [--profile <id>] [--format json]
+    praxis adr list  [repo] [--status <estado>] [--format json]
+    praxis adr show  [repo] <adr-id> [--format json]
+    praxis adr audit [repo] [--format json]
 
 Output contract
 ---------------
@@ -11,7 +14,10 @@ Output contract
 * ``--format json`` emits EXCLUSIVELY the contractual JSON object on stdout
   (nothing else). The ``audit`` object satisfies
   ``schemas/audit-result.schema.json``; the ``status`` object is the stable
-  ``praxis/project-status/v1`` payload documented below.
+  ``praxis/project-status/v1`` payload documented below; ``adr list`` and
+  ``adr show`` emit the stable ``praxis/adr-list/v1`` and
+  ``praxis/adr-summary/v1`` payloads (informational, intentionally not in
+  ``schemas/``).
 * Values are not silently coerced; unknown options/profiles are usage errors.
 
 Exit codes (``docs/contrato-cli.md`` §3)::
@@ -55,7 +61,15 @@ from io import StringIO
 from pathlib import Path
 from typing import Any, Iterator
 
+from praxis_dev import adr as adr_mod
 from praxis_dev import project as project_mod
+from praxis_dev.adr import (
+    ADR_ID_PATTERN,
+    ADR_STATUSES,
+    audit_adrs,
+    list_adrs,
+    show_adr,
+)
 from praxis_dev.project import (
     EXIT_FAIL,
     EXIT_INCONCLUSIVE,
@@ -85,10 +99,11 @@ def _emit_json(obj: dict[str, Any]) -> None:
     sys.stdout.flush()
 
 
-def _emit_audit_human(result: dict[str, Any]) -> None:
+def _emit_audit_human(result: dict[str, Any], *, domain: str = "project") -> None:
     sys.stdout.write(
-        "praxis project audit: {result} (profile={profile}, level={level}, "
+        "praxis {domain} audit: {result} (profile={profile}, level={level}, "
         "findings={nfindings}, diagnostics={ndiagnostics})\n".format(
+            domain=domain,
             result=result["result"],
             profile=result["profile"],
             level=result["level"],
@@ -221,6 +236,155 @@ def _cmd_project(args: list[str]) -> int:
     return _fail_usage(f"unknown project operation {operation!r}")
 
 
+# --------------------------------------------------------------------------- #
+# adr domain
+# --------------------------------------------------------------------------- #
+def _parse_adr(
+    args: list[str], *, allow_status: bool
+) -> tuple[list[str], str | None, str]:
+    """Parse the ADR option tail.
+
+    Returns ``(positionals, status, format)`` where ``format`` is ``"json"`` or
+    ``"human"``. Each command interprets ``positionals`` (repo and, for show,
+    the ADR id). Raises :class:`_Usage` on any contract problem.
+    """
+    positionals: list[str] = []
+    status: str | None = None
+    fmt = "human"
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token == "--format":
+            index += 1
+            if index >= len(args):
+                raise _Usage("missing value for --format")
+            if args[index] != "json":
+                raise _Usage("--format only supports 'json'")
+            fmt = "json"
+        elif token == "--status":
+            if not allow_status:
+                raise _Usage("--status is not valid for this command")
+            index += 1
+            if index >= len(args):
+                raise _Usage("missing value for --status")
+            status = args[index]
+            if status not in ADR_STATUSES:
+                raise _Usage(f"unknown status {status!r}")
+        elif token.startswith("-") and token != "-":
+            raise _Usage(f"unknown option {token!r}")
+        else:
+            positionals.append(token)
+        index += 1
+    return positionals, status, fmt
+
+
+def _emit_list_human(payload: dict[str, Any]) -> None:
+    sys.stdout.write(
+        f"praxis adr list: {payload['repo']}\n"
+        f"  decisions_dir: {payload['decisions_dir']}\n"
+        f"  ADRs ({payload['count']}):\n"
+    )
+    for entry in payload["adrs"]:
+        sys.stdout.write(
+            f"    [{entry['status']}] {entry['id']} - {entry['title']} ({entry['filename']})\n"
+        )
+    if payload["unparseable_count"]:
+        sys.stdout.write(f"  unparseable ({payload['unparseable_count']}):\n")
+        for entry in payload["unparseable"]:
+            sys.stderr.write(f"    {entry['filename']}: {entry['problem']}\n")
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+
+def _emit_summary_human(payload: dict[str, Any]) -> None:
+    if not payload["found"]:
+        sys.stdout.write(f"praxis adr show: {payload['id']} not found\n")
+        sys.stdout.flush()
+        return
+    metadata = payload["metadata"]
+    sys.stdout.write(
+        f"praxis adr show: {payload['id']}\n"
+        f"  title: {metadata.get('title')}\n"
+        f"  status: {metadata.get('status')}\n"
+        f"  file: {payload['path']}\n"
+    )
+    sys.stdout.flush()
+
+
+def _cmd_adr_list(args: list[str]) -> int:
+    try:
+        positionals, status, fmt = _parse_adr(args, allow_status=True)
+    except _Usage as exc:
+        return _fail_usage(str(exc))
+    if len(positionals) > 1:
+        return _fail_usage("expected at most one repo argument")
+    repo = Path(positionals[0]) if positionals else Path.cwd()
+    if not repo.is_dir():
+        return _fail_usage(f"repo not found: {repo}")
+    payload = list_adrs(repo, status)
+    if fmt == "json":
+        _emit_json(payload)
+    else:
+        _emit_list_human(payload)
+    return EXIT_PASS
+
+
+def _cmd_adr_show(args: list[str]) -> int:
+    try:
+        positionals, _status, fmt = _parse_adr(args, allow_status=False)
+    except _Usage as exc:
+        return _fail_usage(str(exc))
+    if not positionals:
+        return _fail_usage("adr show requires an ADR id")
+    if len(positionals) > 2:
+        return _fail_usage("expected at most one repo and one ADR id")
+    if len(positionals) == 2:
+        repo, adr_id = Path(positionals[0]), positionals[1]
+    else:
+        repo, adr_id = Path.cwd(), positionals[0]
+    if not repo.is_dir():
+        return _fail_usage(f"repo not found: {repo}")
+    if ADR_ID_PATTERN.match(adr_id) is None:
+        return _fail_usage(f"invalid ADR id {adr_id!r} (expected ADR-NNNN)")
+    payload = show_adr(repo, adr_id)
+    if fmt == "json":
+        _emit_json(payload)
+    else:
+        _emit_summary_human(payload)
+    return EXIT_PASS if payload["found"] else EXIT_FAIL
+
+
+def _cmd_adr_audit(args: list[str]) -> int:
+    try:
+        positionals, _status, fmt = _parse_adr(args, allow_status=False)
+    except _Usage as exc:
+        return _fail_usage(str(exc))
+    if len(positionals) > 1:
+        return _fail_usage("expected at most one repo argument")
+    repo = Path(positionals[0]) if positionals else Path.cwd()
+    if not repo.is_dir():
+        return _fail_usage(f"repo not found: {repo}")
+    result, exit_code = audit_adrs(repo)
+    if fmt == "json":
+        _emit_json(result)
+    else:
+        _emit_audit_human(result, domain="adr")
+    return exit_code
+
+
+def _cmd_adr(args: list[str]) -> int:
+    if not args:
+        return _fail_usage("adr requires an operation")
+    operation, rest = args[0], args[1:]
+    if operation == "list":
+        return _cmd_adr_list(rest)
+    if operation == "show":
+        return _cmd_adr_show(rest)
+    if operation == "audit":
+        return _cmd_adr_audit(rest)
+    return _fail_usage(f"unknown adr operation {operation!r}")
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns the process exit code."""
     args = list(sys.argv[1:]) if argv is None else list(argv)
@@ -229,6 +393,8 @@ def main(argv: list[str] | None = None) -> int:
     domain, rest = args[0], args[1:]
     if domain == "project":
         return _cmd_project(rest)
+    if domain == "adr":
+        return _cmd_adr(rest)
     return _fail_usage(f"unknown domain {domain!r}")
 
 

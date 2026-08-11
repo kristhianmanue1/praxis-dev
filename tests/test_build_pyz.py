@@ -36,6 +36,7 @@ class BuildPyzTests(unittest.TestCase):
             names = zipfile.ZipFile(target).namelist()
             self.assertIn("__main__.py", names)
             self.assertIn("praxis_dev/cli.py", names)
+            self.assertIn("praxis_dev/adr.py", names)
             self.assertFalse(
                 any("jsonschema" in name for name in names),
                 "zipapp must not bundle jsonschema",
@@ -80,6 +81,32 @@ class BuildPyzTests(unittest.TestCase):
             )
         self.assertEqual(no_args.returncode, 2)
         self.assertEqual(bad_fmt.returncode, 2)
+
+    def test_pyz_runs_adr_list_show_audit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = build(Path(tmp) / "praxis.pyz")
+            listing = subprocess.run(
+                [sys.executable, str(target), "adr", "list", str(WORKTREE), "--format", "json"],
+                capture_output=True,
+                text=True,
+            )
+            show = subprocess.run(
+                [sys.executable, str(target), "adr", "show", str(WORKTREE), "ADR-0001", "--format", "json"],
+                capture_output=True,
+                text=True,
+            )
+            audit = subprocess.run(
+                [sys.executable, str(target), "adr", "audit", str(WORKTREE), "--format", "json"],
+                capture_output=True,
+                text=True,
+            )
+        self.assertEqual(listing.returncode, 0, listing.stderr)
+        self.assertEqual(json.loads(listing.stdout)["schema"], "praxis/adr-list/v1")
+        self.assertEqual(show.returncode, 0, show.stderr)
+        self.assertEqual(json.loads(show.stdout)["schema"], "praxis/adr-summary/v1")
+        self.assertTrue(json.loads(show.stdout)["found"])
+        self.assertEqual(audit.returncode, 0, audit.stderr)
+        self.assertEqual(json.loads(audit.stdout)["schema"], "praxis/audit-result/v1")
 
 
 if __name__ == "__main__":
