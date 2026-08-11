@@ -178,6 +178,10 @@ def check_config(root: Path, manifest: dict[str, Any]) -> list[Issue]:
     profiles = manifest.get("profiles", {})
     if config.get("profile") not in profiles:
         issues.append(Issue("config.profile", str(CONFIG_PATH), "unknown profile"))
+    if config.get("lifecycle") != "development":
+        issues.append(
+            Issue("config.lifecycle", str(CONFIG_PATH), "v1 draft requires lifecycle=development")
+        )
     modules = config.get("modules")
     declared_modules = manifest.get("modules", {})
     if not isinstance(modules, dict):
@@ -247,10 +251,27 @@ def check_config(root: Path, manifest: dict[str, Any]) -> list[Issue]:
                     Issue("config.paths", str(CONFIG_PATH), f"directory not found for {key}")
                 )
     authority = config.get("authority", {})
-    if not isinstance(authority, dict) or authority.get("fail_closed") is not True:
+    if not isinstance(authority, dict):
         issues.append(
-            Issue("config.authority", str(CONFIG_PATH), "authority.fail_closed must be true")
+            Issue("config.authority", str(CONFIG_PATH), "authority must be a table")
         )
+    else:
+        if authority.get("provider") != "github-oauth-web/v1":
+            issues.append(
+                Issue(
+                    "config.authority",
+                    str(CONFIG_PATH),
+                    "v1 draft requires authority.provider=github-oauth-web/v1",
+                )
+            )
+        if authority.get("enforcement") != "advisory":
+            issues.append(
+                Issue(
+                    "config.authority",
+                    str(CONFIG_PATH),
+                    "development authority.enforcement must be advisory",
+                )
+            )
     return issues
 
 

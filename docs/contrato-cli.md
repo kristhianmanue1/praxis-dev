@@ -96,6 +96,8 @@ no ejecuta instrucciones extraídas de memoria o contenido remoto no confiable.
 
 ```bash
 praxis authority providers
+praxis authority login --provider github-oauth-web
+praxis authority status
 praxis authority inspect <receipt>
 praxis authority verify <receipt> --plan <plan>
 ```
@@ -103,6 +105,11 @@ praxis authority verify <receipt> --plan <plan>
 No se define `praxis authority approve` genérico: la autoridad nace en el
 proveedor externo. Un adaptador puede ofrecer una ceremonia específica, pero
 el proceso del agente no debe poder autofirmarla.
+
+En `lifecycle=development`, `login` inicia el flujo web y devuelve
+`development-confirmed` o `development-unverified`. La cancelación, ausencia del
+adaptador o error no bloquea trabajo ordinario y nunca produce un recibo de
+autoridad. El comando no entrega un token personal reutilizable al invocador.
 
 ## 9. JSON y compatibilidad
 

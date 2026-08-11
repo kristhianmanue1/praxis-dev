@@ -9,6 +9,7 @@ import unittest
 
 from scripts.check_repo import (
     check_adrs,
+    check_config,
     check_json_files,
     check_manifest_semantics,
     check_repository,
@@ -120,6 +121,52 @@ def _prepare_adr_root(root: Path) -> Path:
 class RepositoryGateTests(unittest.TestCase):
     def test_current_repository_passes(self) -> None:
         self.assertEqual(check_repository(PROJECT_ROOT), [])
+
+    def test_v1_config_requires_development_lifecycle(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            shutil.copytree(PROJECT_ROOT, root, dirs_exist_ok=True)
+            config_path = root / ".praxis.toml"
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'lifecycle = "development"', 'lifecycle = "production"'
+                ),
+                encoding="utf-8",
+            )
+            messages = [issue.message for issue in check_config(root, MANIFEST)]
+            self.assertIn("v1 draft requires lifecycle=development", messages)
+
+    def test_development_authority_must_be_advisory(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            shutil.copytree(PROJECT_ROOT, root, dirs_exist_ok=True)
+            config_path = root / ".praxis.toml"
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'enforcement = "advisory"', 'enforcement = "strict"'
+                ),
+                encoding="utf-8",
+            )
+            messages = [issue.message for issue in check_config(root, MANIFEST)]
+            self.assertIn(
+                "development authority.enforcement must be advisory", messages
+            )
+
+    def test_v1_config_restricts_authority_provider_to_github(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            shutil.copytree(PROJECT_ROOT, root, dirs_exist_ok=True)
+            config_path = root / ".praxis.toml"
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'provider = "github-oauth-web/v1"', 'provider = "unconfigured"'
+                ),
+                encoding="utf-8",
+            )
+            messages = [issue.message for issue in check_config(root, MANIFEST)]
+            self.assertIn(
+                "v1 draft requires authority.provider=github-oauth-web/v1", messages
+            )
 
     def test_unregistered_root_markdown_fails(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

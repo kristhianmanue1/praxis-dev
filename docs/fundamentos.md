@@ -1,6 +1,6 @@
 # Fundamentos de Praxis Dev
 
-**Versión:** `0.1.0-draft.0` · **Estado:** propuesta fundacional
+**Versión:** `0.1.0-draft.1` · **Estado:** propuesta fundacional
 
 ## 1. Problema
 
@@ -70,6 +70,11 @@ Una entrada desconocida no siempre es un error, pero nunca debe degradar una
 operación protegida. Para seguridad, publicación, políticas y decisiones
 aceptadas, `unknown` bloquea hasta obtener evidencia suficiente.
 
+Durante el ciclo `development`, la autenticación advisory puede degradarse a
+`development-unverified` sin bloquear trabajo ordinario. Esa excepción de
+ergonomía no convierte el resultado en autoridad, no satisface una transición
+protegida y no habilita promoción estable.
+
 ### 3.7 Neutralidad de proveedor
 
 Codex, Claude, Gemini, Grok, modelos locales y futuras herramientas son
@@ -108,6 +113,7 @@ Historial Git / artefactos externos
 |---|---|---|
 | Política | Reglas operativas vigentes | Solicitud actual |
 | Perfil | Nivel de aseguramiento | Reglas de dominio |
+| Ciclo | Etapa operativa y conducta de enforcement | Perfil de aseguramiento |
 | Tarea | Unidad de trabajo cerrable | Decisión arquitectónica |
 | Plan | Mutación propuesta contra un estado | Autorización |
 | ADR | Porqué y consecuencias de una decisión | SPEC o reporte |
@@ -121,7 +127,8 @@ Historial Git / artefactos externos
 La primera versión cubre proyectos Git de software y artefactos de texto. El
 nucleo debe funcionar localmente, sin servicio central, usando formatos
 abiertos. Un proveedor de autoridad externo es opcional para auditoría y
-obligatorio para transiciones de alta garantía.
+trabajo ordinario en `development`, y obligatorio para transiciones de alta
+garantía.
 
 Quedan fuera de la primera versión:
 

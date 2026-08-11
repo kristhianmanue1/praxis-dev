@@ -1,7 +1,7 @@
 # Estándar normativo de Praxis Dev
 
 - **Identificador:** `praxis/project-governance`
-- **Versión:** `0.1.0-draft.0`
+- **Versión:** `0.1.0-draft.1`
 - **Estado:** borrador no promovido
 
 Los términos **DEBE**, **NO DEBE**, **REQUERIDO**, **DEBERÍA** y **PUEDE** se
@@ -77,7 +77,28 @@ Extiende `high-assurance` con identidad fuerte, retención, segregación de
 funciones, evidencia firmada y reglas locales del dominio. Praxis define la
 interfaz, no inventa requisitos regulatorios universales.
 
-## 5. Operaciones
+## 5. Ciclo operativo de la versión inicial
+
+El ciclo operativo es independiente del perfil de aseguramiento. La versión
+`0.1.0-draft.1` sólo admite `lifecycle=development`; no implementa ni permite
+declarar estados `controlled`, `sealed` o de producción.
+
+En `development`, `authority.enforcement=advisory` significa:
+
+- la ceremonia objetivo es GitHub OAuth Web Flow;
+- el resultado observado es `development-confirmed` o
+  `development-unverified`;
+- ausencia, cancelación o indisponibilidad no bloquea trabajo ordinario;
+- ningún resultado advisory es un recibo `praxis/authority-receipt/v1`;
+- no demuestra passkey, huella, WebAuthn ni aprobación de un digest exacto;
+- no satisface operaciones reservadas a `high-assurance` o `regulated`;
+- no permite declarar conformidad estable o de producción.
+
+La elevación futura a otro ciclo requiere contrato nuevo, migración explícita y
+autoridad que el agente no pueda reducir. No se infiere por popularidad,
+configuración local ni presencia de archivos.
+
+## 6. Operaciones
 
 Las operaciones se clasifican:
 
@@ -93,7 +114,7 @@ Los comandos de sólo lectura NO DEBEN actualizar cachés dentro del repositorio
 crear bases de datos ni normalizar archivos. Si una dependencia impide concluir,
 deben devolver `inconclusive`.
 
-## 6. Contrato `plan/apply`
+## 7. Contrato `plan/apply`
 
 Todo plan de mutación DEBE incluir:
 
@@ -122,7 +143,7 @@ Todo plan de mutación DEBE incluir:
 
 Un flag genérico `--force` NO DEBE saltar estas validaciones.
 
-## 7. Evidencia y cierre
+## 8. Evidencia y cierre
 
 Un check registra como mínimo:
 
@@ -138,13 +159,13 @@ Una tarea NO DEBE cerrarse si un gate obligatorio falla. Un resultado
 `inconclusive` bloquea perfiles `high-assurance` y `regulated`; otros perfiles
 deben declararlo explícitamente y aplicar su política local.
 
-## 8. Excepciones
+## 9. Excepciones
 
 Una excepción DEBE contener regla afectada, alcance, razón, autoridad, fecha de
 expiración y remediación. NO DEBE modificar el estándar, convertirse en
 precedente automático ni reutilizarse fuera de su alcance exacto.
 
-## 9. Evolución
+## 10. Evolución
 
 Un cambio incompatible requiere versión mayor. Nuevas capacidades compatibles
 requieren versión menor; correcciones no semánticas usan parche. Cada promoción

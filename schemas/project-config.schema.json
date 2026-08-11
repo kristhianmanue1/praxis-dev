@@ -10,6 +10,7 @@
     "project_id",
     "standard_version",
     "profile",
+    "lifecycle",
     "modules",
     "paths",
     "authority"
@@ -25,6 +26,10 @@
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
     },
     "profile": {"enum": ["minimal", "standard", "high-assurance", "regulated"]},
+    "lifecycle": {
+      "const": "development",
+      "description": "The initial v1 draft supports only an explicitly non-production lifecycle."
+    },
     "modules": {
       "type": "object",
       "minProperties": 1,
@@ -47,10 +52,13 @@
     "authority": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["provider", "fail_closed"],
+      "required": ["provider", "enforcement"],
       "properties": {
-        "provider": {"type": "string", "minLength": 3},
-        "fail_closed": {"const": true}
+        "provider": {"const": "github-oauth-web/v1"},
+        "enforcement": {
+          "const": "advisory",
+          "description": "Authentication absence or failure is reported but does not block ordinary development work."
+        }
       }
     }
   },
