@@ -1,7 +1,7 @@
 {
   "schema": "praxis/standard-manifest/v1",
   "standard_id": "praxis/project-governance",
-  "version": "0.1.0-draft.0",
+  "version": "0.1.0-draft.1",
   "status": "draft",
   "provider_neutral": true,
   "canonical_agent_file": "AGENTS.md",

@@ -1,6 +1,6 @@
 # Praxis Dev
 
-**Estado:** diseño fundacional · **Versión del estándar:** `0.1.0-draft.0`
+**Estado:** diseño fundacional · **Versión del estándar:** `0.1.0-draft.1`
 
 Praxis Dev es un estándar ejecutable de gobernanza para proyectos de software
 asistidos por agentes de IA. Convierte políticas, decisiones, contratos de
@@ -74,6 +74,15 @@ autoverifica con Python estándar:
 python3.12 scripts/check_repo.py
 python3.12 -m unittest discover -s tests -v
 ```
+
+## Autoridad durante el desarrollo
+
+La versión inicial declara `lifecycle=development` y selecciona GitHub OAuth
+Web Flow como mecanismo interactivo objetivo. Su enforcement es `advisory`: una
+confirmación puede aportar identidad de cuenta, pero su ausencia no bloquea el
+trabajo ordinario y nunca se presenta como firma WebAuthn ni como recibo de alta
+garantía. Los perfiles `controlled` y `sealed` quedan fuera del MVP y se siguen
+en [la deuda de autenticación fuerte](https://github.com/kristhianmanue1/praxis-dev/issues/10).
 
 ## Estado honesto
 

@@ -106,6 +106,26 @@ circular. El adaptador rechaza implementaciones que llamen “JCS” a un simple
 
 ## 6. Proveedores previstos
 
+### GitHub OAuth Web Flow — selección inicial
+
+El ciclo `development` usa `github-oauth-web/v1` como mecanismo interactivo
+objetivo y `enforcement=advisory`. El navegador puede confirmar control de una
+cuenta GitHub, pero Praxis no recibe una aserción WebAuthn ni puede afirmar qué
+método usó GitHub para autenticarla.
+
+La implementación debe solicitar el alcance mínimo, validar estado, callback e
+identidad y no entregar al proceso del agente un token personal reutilizable.
+El resultado normalizado sólo puede ser:
+
+| Resultado | Significado | ¿Bloquea desarrollo ordinario? |
+|---|---|---|
+| `development-confirmed` | GitHub confirmó la cuenta en el flujo observado | no |
+| `development-unverified` | flujo omitido, cancelado, fallido o no disponible | no |
+
+Ninguno es un recibo `praxis/authority-receipt/v1`, demuestra aprobación de un
+digest exacto o habilita `high-assurance`. Si todavía no existe adaptador, el
+único resultado honesto es `development-unverified`.
+
 ### Revisión protegida de forja
 
 Una cuenta/rol separado revisa una revisión exacta. La identidad del agente no
@@ -128,6 +148,15 @@ Praxis verifica el contrato; no administra la identidad corporativa.
 Puede existir en perfiles bajos para ergonomía, pero debe llamarse
 `unverified-local`, nunca “human verified”. No permite transiciones reservadas
 por perfiles altos.
+
+### Deuda de seguridad superior
+
+Los ciclos opcionales `controlled` y `sealed`, un proveedor de identidad
+independiente y WebAuthn propio se diseñarán sólo cuando adopción o riesgo lo
+justifiquen. La deuda está registrada en el
+[issue #10](https://github.com/kristhianmanue1/praxis-dev/issues/10). Un proyecto
+personal no debe asumir su coste por defecto; una política empresarial sí puede
+exigirla cuando exista la capacidad verificable.
 
 ## 7. Matriz inicial de operaciones
 
@@ -161,11 +190,11 @@ Praxis debe probar defensas contra:
 
 ## 9. Bootstrap
 
-Antes de existir un proveedor implementado, todos los recibos están
-`unverified`. Las decisiones fundacionales se conservan como `proposed` y la
-promoción inicial debe realizarla el principal mediante un procedimiento
-documentado y revisable. El diseño no se declara seguro por describir la
-seguridad futura.
+Antes de existir un proveedor implementado, la observación de desarrollo es
+`development-unverified` y no se emiten recibos. Las decisiones fundacionales
+se conservan como `proposed` y la promoción inicial debe realizarla el principal
+mediante un procedimiento documentado y revisable. El diseño no se declara
+seguro por describir la seguridad futura.
 
 ## 10. Historial de transiciones ADR
 

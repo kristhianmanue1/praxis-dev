@@ -20,5 +20,6 @@ Adaptadores candidatos, todavía no implementados:
 
 - hosts: Codex, Claude, Gemini y CLIs locales;
 - forjas: GitHub y GitLab;
-- autoridad: revisión protegida y WebAuthn;
+- autoridad inicial: GitHub OAuth Web Flow advisory para desarrollo;
+- autoridad futura: IdP independiente, revisión protegida o WebAuthn;
 - memoria: enlace opcional con AN-KLA, sin autoridad derivada.

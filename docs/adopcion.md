@@ -69,11 +69,16 @@ explícita.
 
 `.praxis.toml` contiene únicamente configuración estable:
 
-- `project_id` inmutable, versión y perfil;
+- `project_id` inmutable, versión, perfil y ciclo operativo;
 - módulos activos;
 - rutas canónicas;
-- proveedor de autoridad;
+- proveedor y conducta de enforcement de autoridad;
 - extensiones locales.
+
+La versión inicial crea proyectos con `lifecycle=development` y
+`authority.enforcement=advisory`. La ausencia del adaptador produce una
+degradación visible, no una aprobación implícita. Una futura promoción de ciclo
+será una migración gobernada, no una edición ordinaria de TOML.
 
 No guarda rama actual, siguiente tarea, conteos, tokens, aprobaciones ni
 resultados de checks.

@@ -57,18 +57,23 @@ Entregables:
 Cierre: ningún agente puede aceptar con campos autodeclarados; colisiones y
 ediciones posteriores a aprobación fallan.
 
-## F4 — Autoridad externa
+## F4 — Autoridad progresiva
 
 Entregables:
 
 - interfaz de adaptadores de autoridad;
-- proveedor inicial de revisión protegida;
-- verificación de recibos, alcance, expiración y replay;
-- fixtures con credenciales separadas;
-- procedimiento de bootstrap y revocación.
+- proveedor inicial `github-oauth-web/v1` para `lifecycle=development`;
+- resultados advisory `development-confirmed | development-unverified`;
+- separación entre token personal, proceso del agente y observación devuelta;
+- fixtures de cancelación, indisponibilidad, identidad incorrecta y token
+  reutilizable expuesto;
+- documentación explícita de que OAuth no demuestra WebAuthn ni autoriza un
+  digest exacto.
 
-Cierre: pruebas demuestran que la credencial operativa del agente no puede
-producir un recibo aceptable.
+Cierre: el flujo mejora la identificación interactiva sin bloquear desarrollo,
+no emite recibos fuertes y no permite conformidad de producción. Los perfiles
+`controlled` y `sealed` permanecen como
+[deuda futura](https://github.com/kristhianmanue1/praxis-dev/issues/10).
 
 ## F5 — SPEC y evidencia
 
@@ -97,7 +102,7 @@ Cierre: promoción humana a `1.0.0-rc.1`, no directamente a estable.
 
 - convertir el estándar en monolito;
 - crear una segunda fuente de verdad mediante índices manuales;
-- depender de GitHub como única autoridad;
+- presentar GitHub OAuth de desarrollo como autoridad de alta garantía;
 - exigir infraestructura desproporcionada a proyectos pequeños;
 - confundir esquema válido con prueba auténtica;
 - autoaprobar el estándar con su propia versión candidata.

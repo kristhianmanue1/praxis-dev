@@ -1,10 +1,15 @@
 # Conformidad, perfiles y gates
 
-## 1. Dos dimensiones
+## 1. Tres dimensiones
 
-Praxis distingue **madurez estructural** y **perfil de aseguramiento**. Un nivel
-alto no significa que el proyecto sea seguro; indica qué partes del contrato
-están presentes y verificables. El perfil determina qué controles exige.
+Praxis distingue **madurez estructural**, **perfil de aseguramiento** y **ciclo
+operativo**. Un nivel alto no significa que el proyecto sea seguro; indica qué
+partes del contrato están presentes y verificables. El perfil determina qué
+controles exige. El ciclo determina si esos controles son advisory o pueden
+gobernar operaciones protegidas.
+
+En la versión inicial el único ciclo válido es `development`; no debe
+proyectarse como producción aunque alcance L4 estructural.
 
 ## 2. Niveles de madurez
 
@@ -16,7 +21,7 @@ están presentes y verificables. El perfil determina qué controles exige.
 | L3 | Gates ejecutables y referencias coherentes |
 | L4 | Módulos del perfil pasan sin BLOCKER/HIGH |
 
-La salida debe reportar nivel, perfil y hallazgos por separado.
+La salida debe reportar nivel, perfil, ciclo y hallazgos por separado.
 
 ## 3. Severidad
 
@@ -97,6 +102,14 @@ Todo perfil verifica:
 - vigencia, revocación y no replay;
 - consumo compare-and-set durable antes de mutar;
 - independencia exigida por el perfil.
+
+En `development`, el gate sólo comprueba que la degradación sea honesta:
+
+- `github-oauth-web/v1` es el proveedor objetivo declarado;
+- `enforcement=advisory` permanece visible;
+- éxito produce `development-confirmed`, no un recibo fuerte;
+- cancelación, fallo o adaptador ausente produce `development-unverified`;
+- ambos resultados quedan fuera de conformidad de producción.
 
 ## 6. Baselines
 

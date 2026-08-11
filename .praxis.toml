@@ -1,7 +1,8 @@
 schema = "praxis/project-config/v1"
 project_id = "4f352068-06ad-5ea5-98c3-c27e7b84d47e"
-standard_version = "0.1.0-draft.0"
+standard_version = "0.1.0-draft.1"
 profile = "standard"
+lifecycle = "development"
 
 [modules]
 core = "v1"
@@ -18,5 +19,5 @@ decisions = "docs/decisions"
 specs = "docs/specs"
 
 [authority]
-provider = "unconfigured"
-fail_closed = true
+provider = "github-oauth-web/v1"
+enforcement = "advisory"
