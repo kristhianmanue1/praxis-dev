@@ -1,0 +1,76 @@
+{
+  "schema_file": "adr-metadata.schema.json",
+  "cases": [
+    {
+      "name": "positive-proposed",
+      "valid": true,
+      "instance": {
+        "schema": "praxis/adr-metadata/v1",
+        "id": "ADR-0001",
+        "title": "Plataforma independiente y modular",
+        "status": "proposed",
+        "created_at": "2026-08-11T11:02:19Z",
+        "origin": "agent_assisted",
+        "authors": ["Kratos"],
+        "decision_owners": ["Mediador"],
+        "assurance_profile": "high-assurance",
+        "supersedes": [],
+        "superseded_by": null,
+        "related": [],
+        "decision_core_sha256": null,
+        "transitions": [
+          {"from": null, "to": "draft", "at": "2026-08-11T11:02:19Z", "authority_receipt": null, "authority_receipt_sha256": null},
+          {"from": "draft", "to": "proposed", "at": "2026-08-11T11:02:19Z", "authority_receipt": null, "authority_receipt_sha256": null}
+        ]
+      }
+    },
+    {
+      "name": "accepted-no-digest",
+      "valid": false,
+      "code": "type",
+      "instance": {
+        "schema": "praxis/adr-metadata/v1",
+        "id": "ADR-0002",
+        "title": "Una decision arquitectonica de prueba",
+        "status": "accepted",
+        "created_at": "2026-08-11T11:02:19Z",
+        "origin": "human",
+        "authors": ["Kratos"],
+        "decision_owners": ["Mediador"],
+        "assurance_profile": "standard",
+        "supersedes": [],
+        "superseded_by": null,
+        "related": [],
+        "decision_core_sha256": null,
+        "transitions": [
+          {"from": null, "to": "draft", "at": "2026-08-11T11:02:19Z", "authority_receipt": null, "authority_receipt_sha256": null},
+          {"from": "draft", "to": "proposed", "at": "2026-08-11T11:02:19Z", "authority_receipt": null, "authority_receipt_sha256": null}
+        ]
+      }
+    },
+    {
+      "name": "duplicate-author",
+      "valid": false,
+      "code": "unique-items",
+      "instance": {
+        "schema": "praxis/adr-metadata/v1",
+        "id": "ADR-0003",
+        "title": "Otra decision arquitectonica de prueba",
+        "status": "proposed",
+        "created_at": "2026-08-11T11:02:19Z",
+        "origin": "human",
+        "authors": ["Kratos", "Kratos"],
+        "decision_owners": ["Mediador"],
+        "assurance_profile": "standard",
+        "supersedes": [],
+        "superseded_by": null,
+        "related": [],
+        "decision_core_sha256": null,
+        "transitions": [
+          {"from": null, "to": "draft", "at": "2026-08-11T11:02:19Z", "authority_receipt": null, "authority_receipt_sha256": null},
+          {"from": "draft", "to": "proposed", "at": "2026-08-11T11:02:19Z", "authority_receipt": null, "authority_receipt_sha256": null}
+        ]
+      }
+    }
+  ]
+}

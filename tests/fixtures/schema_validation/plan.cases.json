@@ -1,0 +1,85 @@
+{
+  "schema_file": "plan.schema.json",
+  "_note": "SYNTHETIC shape-only data; not a real plan, not authority. Digests are placeholders matching the pattern.",
+  "cases": [
+    {
+      "name": "positive-synthetic",
+      "valid": true,
+      "instance": {
+        "schema": "praxis/mutation-plan/v1",
+        "operation_id": "synthetic-op-0001",
+        "operation": "project.init",
+        "project": {
+          "project_id": "4f352068-06ad-5ea5-98c3-c27e7b84d47e",
+          "root_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "remote": null,
+          "head": null
+        },
+        "observed_state": {
+          "fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "allowed_paths": ["AGENTS.md"],
+        "preconditions": [
+          {"kind": "file-absent", "subject": "AGENTS.md", "expected": null}
+        ],
+        "actions": [
+          {
+            "action_id": "act-01",
+            "kind": "create",
+            "path": "AGENTS.md",
+            "expected_before_sha256": null,
+            "content_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ],
+        "postconditions": [
+          {"kind": "file-present", "subject": "AGENTS.md", "expected": null}
+        ],
+        "required_authority": "principal",
+        "created_at": "2026-08-11T11:02:19Z",
+        "expires_at": null,
+        "canonicalization": "RFC8785",
+        "plan_fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    },
+    {
+      "name": "create-with-null-content",
+      "valid": false,
+      "code": "type",
+      "instance": {
+        "schema": "praxis/mutation-plan/v1",
+        "operation_id": "synthetic-op-0002",
+        "operation": "project.init",
+        "project": {
+          "project_id": "4f352068-06ad-5ea5-98c3-c27e7b84d47e",
+          "root_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "remote": null,
+          "head": null
+        },
+        "observed_state": {
+          "fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "allowed_paths": ["AGENTS.md"],
+        "preconditions": [
+          {"kind": "file-absent", "subject": "AGENTS.md", "expected": null}
+        ],
+        "actions": [
+          {
+            "action_id": "act-01",
+            "kind": "create",
+            "path": "AGENTS.md",
+            "expected_before_sha256": null,
+            "content_sha256": null
+          }
+        ],
+        "postconditions": [
+          {"kind": "file-present", "subject": "AGENTS.md", "expected": null}
+        ],
+        "required_authority": "principal",
+        "created_at": "2026-08-11T11:02:19Z",
+        "expires_at": null,
+        "canonicalization": "RFC8785",
+        "plan_fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    }
+  ]
+}

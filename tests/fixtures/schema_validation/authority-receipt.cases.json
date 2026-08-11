@@ -1,0 +1,68 @@
+{
+  "schema_file": "authority-receipt.schema.json",
+  "_note": "SYNTHETIC shape-only data; not a real receipt, not authority. The schema validates envelope shape only.",
+  "cases": [
+    {
+      "name": "positive-synthetic",
+      "valid": true,
+      "instance": {
+        "schema": "praxis/authority-receipt/v1",
+        "receipt_id": "synthetic-receipt-0001",
+        "project_id": "4f352068-06ad-5ea5-98c3-c27e7b84d47e",
+        "operation": "adr.transition",
+        "target_id": "ADR-0001",
+        "from_state": "proposed",
+        "to_state": "accepted",
+        "content_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "plan_fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "scope": ["adr:accept"],
+        "authorizer_identity": "synthetic-principal",
+        "provider": "github-oauth-web/v1",
+        "issued_at": "2026-08-11T11:02:19Z",
+        "expires_at": "2026-08-12T11:02:19Z",
+        "nonce": "synthetic-nonce-0123456789abcdef",
+        "single_use": true,
+        "canonicalization": "RFC8785",
+        "payload_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "proof": {
+          "type": "synthetic-proof-type",
+          "key_id": "synthetic-key-01",
+          "algorithm": "synthetic-algorithm",
+          "signature": "synthetic-signature-placeholder",
+          "provider_data": {}
+        }
+      }
+    },
+    {
+      "name": "missing-required-nonce",
+      "valid": false,
+      "code": "required",
+      "instance": {
+        "schema": "praxis/authority-receipt/v1",
+        "receipt_id": "synthetic-receipt-0001",
+        "project_id": "4f352068-06ad-5ea5-98c3-c27e7b84d47e",
+        "operation": "adr.transition",
+        "target_id": "ADR-0001",
+        "from_state": "proposed",
+        "to_state": "accepted",
+        "content_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "plan_fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "scope": ["adr:accept"],
+        "authorizer_identity": "synthetic-principal",
+        "provider": "github-oauth-web/v1",
+        "issued_at": "2026-08-11T11:02:19Z",
+        "expires_at": "2026-08-12T11:02:19Z",
+        "single_use": true,
+        "canonicalization": "RFC8785",
+        "payload_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "proof": {
+          "type": "synthetic-proof-type",
+          "key_id": "synthetic-key-01",
+          "algorithm": "synthetic-algorithm",
+          "signature": "synthetic-signature-placeholder",
+          "provider_data": {}
+        }
+      }
+    }
+  ]
+}

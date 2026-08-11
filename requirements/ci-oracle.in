@@ -1,0 +1,17 @@
+# requirements/ci-oracle.in -- CI oracle INTENT (input pin).
+#
+# This file expresses intent: which top-level package (and extras) the CI
+# differential gate scripts/check_schema_oracle.py needs. It is NOT installed
+# directly. pip-compile resolves it into requirements/ci-oracle.txt, the SINGLE
+# canonical install artifact (fully pinned, hashed) that CI installs with
+# `pip install --require-hashes`.
+#
+# Relationship:
+#   ci-oracle.in   -> intention (one direct pin, no hashes)
+#   ci-oracle.txt  -> canonical locked installation (all transitive deps + hashes)
+#
+# jsonschema is a differential REFERENCE only; it never enters the runtime/zipapp.
+# Regenerate the lock with pip-tools on Python 3.12:
+#   pip-compile --generate-hashes --no-emit-index-url \
+#       --output-file=requirements/ci-oracle.txt requirements/ci-oracle.in
+jsonschema[format]==4.26.0

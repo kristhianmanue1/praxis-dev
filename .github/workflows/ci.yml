@@ -1,0 +1,39 @@
+name: CI
+
+# Minimal gate: runs the stdlib-only test suite and repository gate, then a
+# CI-only differential oracle (scripts/check_schema_oracle.py) that installs
+# jsonschema solely from requirements/ci-oracle.txt with --require-hashes.
+# jsonschema is a differential reference, never a runtime/zipapp dependency.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements/ci-oracle.txt
+
+      - name: Install CI oracle (hashed lock, no upgrades)
+        run: pip install --require-hashes -r requirements/ci-oracle.txt
+
+      - name: Runtime test suite (stdlib only)
+        run: python3.12 -m unittest discover -s tests -v
+
+      - name: Repository gate
+        run: python3.12 scripts/check_repo.py
+
+      - name: Schema differential oracle
+        run: python3.12 scripts/check_schema_oracle.py
