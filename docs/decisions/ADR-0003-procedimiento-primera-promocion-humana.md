@@ -57,11 +57,15 @@ Este ADR define el procedimiento mínimo de la primera promoción humana de
 `praxis/project-governance` (de `draft` a candidata) y su registro. No
 implementa autoridad criptográfica, no crea el adaptador F4, no modifica la
 matriz de autoridad ni los perfiles. La aceptación de este mismo ADR es una
-decisión de repositorio (transición ADRG) y sigue los gates ADRG existentes;
-no es una promoción de estándar y por eso no requiere etiqueta ni registro
-de promoción. Esa distinción es estructural, no una exención: si alguien
-pretendiera usar la aceptación de un ADR como promoción del estándar, estaría
-confundiendo dos autoridades que este documento mantiene separadas.
+decisión de repositorio (transición ADRG `proposed → accepted`) que, hasta
+que F3/F4 existan, se ejecuta bajo la excepción F0 de `AGENTS.md`: una
+edición ordinaria autorizada por la solicitud humana actual de un
+`decision_owner`, con el diff y los gates como evidencia y la transición
+registrada en la metadata. No es una promoción de estándar y por eso no
+requiere etiqueta ni registro de promoción. Esa distinción es estructural,
+no una exención: si alguien pretendiera usar la aceptación de un ADR como
+promoción del estándar, estaría confundiendo dos autoridades que este
+documento mantiene separadas.
 
 ## Drivers e invariantes
 
@@ -104,26 +108,41 @@ archivo verificable por gates.
 La primera promoción humana del estándar (y de este ADR) exige, en orden:
 
 1. **Candidata congelada:** un commit etiquetado `vX.Y.Z-rc.N` cuyo digest
-   sea el objeto exacto de la decisión. La etiqueta es inmutable; cualquier
-   cambio exige nueva etiqueta y nueva decisión.
+   sea el objeto exacto de la decisión. La etiqueta es inmutable por
+   convención Y por configuración: el acto de promoción incluye activar la
+   protección de etiquetas en la forja (protected tag / ruleset que impida
+   `git push -f` sobre ella); si la forja no lo permite, el registro de
+   promoción debe declararlo como riesgo aceptado. Cualquier cambio exige
+   nueva etiqueta y nueva decisión.
 2. **Evidencia mínima adjunta en el cuerpo de la etiqueta** (o archivo
    referenciado por digest en él):
    - resultado de `scripts/check_repo.py` en el commit exacto;
    - resultado de la suite de tests completa;
    - al menos una revisión adversarial independiente documentada (documento
      con hallazgos y decisión `proceed`/`block`), realizada por un agente o
-     humano que no sea autor del cambio ni preparador de la evidencia;
+     humano que no sea autor del cambio ni preparador de la evidencia; para
+     agentes, independencia mínima declarada: distinto modelo o distinto
+     operador humano que el autor;
    - registro de pilotos read-only existentes (hoy: escrubery 2026-08-19).
+
+   Esta lista es el mínimo, no el máximo: `docs/estandar.md` §10 aplica
+   íntegro (incluidos esquemas/fixtures actualizados y pilotos
+   representativos) y esta evidencia no lo sustituye. Es la primera
+   promoción: no existe versión estable anterior que audite la candidata
+   (§10, condición N/A por ausencia, no por omisión).
 3. **Rol humano:** sólo una persona listada como `decision_owners` en la
    metadata de los ADR del estándar (hoy: `Kris Nova`) puede ejecutar la
    promoción. Ese campo es el hogar vigente de la propiedad de decisión;
    si el estándar adquiere un registro formal de owners, el ADR que lo cree
    actualizará esta referencia. Un agente puede preparar 1 y 2, nunca 3.
-4. **Acto de promoción:** el humano crea la etiqueta anotada firmando con su
-   identidad Git real y añade un registro `docs/releases/promotion-<tag>.md`
-   con: digest del commit, lista de evidencia con sus digests, identidad
-   del humano (cuenta), fecha, y una declaración explícita de que promueve
-   esa candidata exacta.
+4. **Acto de promoción:** el humano configura firma Git (`user.signingkey`),
+   crea la etiqueta anotada firmada y añade un registro
+   `docs/releases/promotion-<tag>.md` con: digest del commit, lista de
+   evidencia con sus digests, identidad del humano (cuenta), fecha, y una
+   declaración explícita de que promueve esa candidata exacta. Si el
+   promotor no firma, el registro DEBE declarar "promoción sin firma" y la
+   revisión adversarial debe señalarlo como riesgo aceptado; la ausencia de
+   firma nunca es silenciosa.
 5. **Verificación posterior:** `adr audit` y los gates deben pasar sobre el
    commit promovido; el registro de promoción es auditable por cualquier
    tercero con acceso al repo.
@@ -215,8 +234,12 @@ Neutrales:
 - Ciclo gobernado `init-plan/init-apply` implementado en `praxis_dev`
   (commits `97568b9`, `08d355d`) con ronda adversarial documentada en el
   segundo.
+- Auto-revisión adversarial del propio ADR (2026-08-19,
+  `docs/adversarial/adr-0003-2026-08-19.md`): proceed con condiciones;
+  HA1-HA3 remediados en este texto; la ronda independiente sigue pendiente.
 
 ## Estado
 
-Propuesto. Su aceptación sigue este mismo procedimiento: revisión
-adversarial + decisión humana de un `decision_owner`.
+Propuesto. Su aceptación es una transición ADRG que, hasta F3/F4, se
+ejecuta bajo la excepción F0: solicitud humana actual de un
+`decision_owner` + diff + gates + ronda adversarial independiente.
