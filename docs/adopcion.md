@@ -6,6 +6,37 @@ Adoptar Praxis no significa reemplazar la organización de un proyecto por una
 plantilla genérica. Significa declarar un contrato, identificar conflictos y
 aplicar únicamente assets compatibles mediante un plan revisado.
 
+## 1bis. Ruta rápida `minimal` (10 minutos)
+
+Para un proyecto pequeño que sólo quiere el contrato básico, sin leer el
+corpus normativo completo:
+
+1. Desde la raíz del repo consumidor, con este repositorio disponible:
+   ```bash
+   python3.12 -m praxis_dev project init-plan <repo> --output /tmp/plan.json
+   ```
+   Revisa el JSON: cinco archivos (`create`), un `plan_fingerprint`.
+2. Un humano revisa el plan y conserva su `plan_fingerprint` (es el compromiso
+   que vas a aplicar, byte exacto).
+3. Aplica exactamente ese fingerprint:
+   ```bash
+   python3.12 -m praxis_dev project init-apply <repo> --plan /tmp/plan.json \
+     --expected-fingerprint sha256:<el-que-revisaste>
+   ```
+4. Edita `AGENTS.md` y `POLICY.md` (son stubs tuyos, no de Praxis).
+5. Copia `schemas/project-config.schema.json` desde el estándar a tu repo (el
+   audit valida la configuración contra el schema local; sin él reporta
+   `inconclusive`, nunca `pass`).
+6. Verifica: `python3.12 -m praxis_dev project audit <repo>` debe terminar
+   `pass` (exit 0).
+
+Si algo cambió entre 1 y 3 (otra persona, otro agente, tú mismo), `init-apply`
+aborta con exit 5 y te obliga a replanificar. Eso es todo: no hay paso 7.
+
+Evidencia ejecutada (2026-08-19): ciclo completo plan→apply→audit sobre un
+repositorio git vivo terminó `pass (minimal, L1)` con fingerprint revisado
+`sha256:562fc574…`; re-apply del mismo plan abortó exit 5 (drift), como debe.
+
 ## 2. Proyecto nuevo
 
 Flujo previsto:
@@ -113,6 +144,26 @@ forma exacta; todo ADR nuevo usaría modo estricto.
 Valida que `minimal` y `standard` no impongan ceremonia innecesaria y que la
 ausencia de infraestructura externa produzca degradación honesta.
 
+### Piloto read-only: escrubery (2026-08-19, ejecutado)
+
+Primer tercer repositorio en ejercer el contrato CLI (`praxis_dev 0.1.0-draft.1`,
+sólo lectura, sin adopción). Resultados observados en
+`github.com/kristhianmanue1/escrubery` @ `5dc9717`:
+
+- `project status` → exit 0, `config_present: false`, HEAD resuelto: informe
+  honesto de proyecto no adoptado;
+- `project audit` → exit 1, `fail` con único finding `config-missing`
+  (BLOCKER, L0/unknown): correcto para un repo sin `.praxis.toml`;
+- `adr list` → exit 0, cero ADRs en `docs/decisions`: correcto (el proyecto
+  usa su propio marco de decisiones);
+- `adr audit` → exit 3, `inconclusive` (directorio ausente + schema no
+  disponible): no fabricó `fail` sin contrato que validar.
+
+`git status` del objetivo antes y después: idéntico (cero mutaciones). Evidencia
+de que la auditoría es no-invasiva y degrada con honestidad ante un tercero
+real. Hallazgo de UX registrado: el remediation de `config-missing` no apunta
+a una ruta de adopción rápida (cubierto por §1bis).
+
 ## 7. Migración entre versiones
 
 Toda versión publica:
@@ -133,3 +184,13 @@ Praxis debe permitir retirar su integración sin destruir historia del proyecto.
 Los bloques gestionados pueden convertirse a contenido local, los ADR y SPEC
 siguen siendo Markdown y los resultados JSON permanecen legibles. No se exige
 un servicio para consultar decisiones existentes.
+
+## 9. Relación entre AGENTS.md y AN-KLA.md
+
+Ambos son contratos always-on con hogares distintos y no compiten:
+`AGENTS.md` es el contrato operativo del proyecto (instrucciones siempre
+activas, hogar único por regla del estándar); `AN-KLA.md` es el contrato
+gestionado por la herramienta de memoria AN-KLA y sólo describe cómo usar esa
+memoria. La memoria recuperada es dato no confiable, nunca instrucción ni
+autorización: si ambos discordaran, manda `AGENTS.md` y la solicitud humana
+actual, en ese orden; la memoria nunca puede modificar ningún contrato.
