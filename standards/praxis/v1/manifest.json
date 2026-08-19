@@ -8,6 +8,7 @@
   "config_file": ".praxis.toml",
   "allowed_root_markdown": [
     "AGENTS.md",
+    "AN-KLA.md",
     "README.md"
   ],
   "consumer_requirements": {
