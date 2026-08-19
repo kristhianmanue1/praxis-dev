@@ -350,18 +350,520 @@ def build_init_plan(
     return plan, classification, contents
 
 
+# --------------------------------------------------------------------------- #
+# Governed apply (F2 increment 2)
+# --------------------------------------------------------------------------- #
+# Exit codes for apply outcomes (single home; the CLI re-uses them).
+APPLY_PASS = 0
+APPLY_FAIL = 1
+APPLY_DRIFT = 5  # contrato-cli.md §3: drift o conflicto concurrente
+
+
+class PlanRejected(Exception):
+    """A plan failed validation or state checks; carrying an outcome payload."""
+
+    def __init__(self, outcome: dict[str, Any]) -> None:
+        super().__init__(outcome.get("result", "rejected"))
+        self.outcome = outcome
+
+
+class PlanInvalid(PlanRejected):
+    """The plan artifact does not satisfy the mutation-plan schema."""
+
+
+class PlanDrift(PlanRejected):
+    """Observed state no longer matches the plan's observed state."""
+
+
+def _apply_result(
+    result: str,
+    diagnostics: list[dict[str, Any]],
+    *,
+    plan_fingerprint_value: str | None = None,
+    applied: list[str] | None = None,
+) -> dict[str, Any]:
+    outcome: dict[str, Any] = {
+        "schema": "praxis/init-apply-result/v1",
+        "tool_version": TOOL_VERSION,
+        "result": result,
+        "diagnostics": diagnostics,
+    }
+    if plan_fingerprint_value is not None:
+        outcome["plan_fingerprint"] = plan_fingerprint_value
+    if applied is not None:
+        outcome["applied_actions"] = applied
+    return outcome
+
+
+def _reject_plan(plan: Any) -> dict[str, Any]:
+    """Structural validation of the plan against the embedded schema."""
+    diagnostics = sv_validate_plan(plan)
+    if diagnostics:
+        return _apply_result(
+            "invalid-plan",
+            [
+                {"code": f"plan-{d.code}", "level": "error", "message": d.message}
+                for d in diagnostics
+            ],
+        )
+    return _apply_result("ok", [])
+
+
+def sv_validate_plan(plan: Any):
+    """Validate ``plan`` against the embedded mutation-plan schema."""
+    from praxis_dev import schema_validation as sv
+    from praxis_dev.plan_schema import PLAN_SCHEMA
+
+    return sv.validate(plan, PLAN_SCHEMA)
+
+
+def load_plan_file(plan_path: Path) -> dict[str, Any]:
+    """Load and structurally validate a plan artifact.
+
+    Raises :class:`PlanInvalid` with a full outcome payload on failure.
+    Duplicate JSON keys are rejected (contrato-cli.md §9).
+    """
+    from praxis_dev.schema_validation import loads_strict
+
+    try:
+        text = plan_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise PlanInvalid(
+            _apply_result("invalid-plan", [
+                {"code": "plan-unreadable", "level": "error", "message": str(exc)}
+            ])
+        ) from exc
+    try:
+        plan = loads_strict(text)
+    except ValueError as exc:
+        raise PlanInvalid(
+            _apply_result("invalid-plan", [
+                {"code": "plan-unparseable", "level": "error", "message": str(exc)}
+            ])
+        ) from exc
+    if not isinstance(plan, dict):
+        raise PlanInvalid(
+            _apply_result("invalid-plan", [
+                {"code": "plan-not-object", "level": "error",
+                 "message": "plan artifact must be a JSON object"}
+            ])
+        )
+    rejection = _reject_plan(plan)
+    if rejection["result"] != "ok":
+        raise PlanInvalid(rejection)
+    return plan
+
+
+def _check_fingerprint(plan: dict[str, Any], expected: str) -> None:
+    actual = plan.get("plan_fingerprint")
+    recomputed = plan_fingerprint(plan)
+    if actual != recomputed:
+        raise PlanInvalid(
+            _apply_result("invalid-plan", [
+                {
+                    "code": "plan-fingerprint-mismatch",
+                    "level": "error",
+                    "message": "plan_fingerprint does not match the plan body",
+                }
+            ])
+        )
+    if actual != expected:
+        raise PlanInvalid(
+            _apply_result("fingerprint-rejected", [
+                {
+                    "code": "plan-fingerprint-unexpected",
+                    "level": "error",
+                    "message": (
+                        f"expected {expected}, plan carries {actual}; refusing "
+                        "to apply anything other than the exact reviewed plan"
+                    ),
+                }
+            ])
+        )
+
+
+def _check_operation(plan: dict[str, Any]) -> None:
+    if plan.get("operation") != OPERATION:
+        raise PlanInvalid(
+            _apply_result("invalid-plan", [
+                {
+                    "code": "plan-operation-unsupported",
+                    "level": "error",
+                    "message": f"init-apply only consumes {OPERATION!r} plans",
+                }
+            ])
+        )
+    if plan.get("required_authority") != REQUIRED_AUTHORITY:
+        raise PlanInvalid(
+            _apply_result("invalid-plan", [
+                {
+                    "code": "plan-authority-unsupported",
+                    "level": "error",
+                    "message": (
+                        f"init-apply only consumes plans requiring "
+                        f"{REQUIRED_AUTHORITY!r} (got {plan.get('required_authority')!r})"
+                    ),
+                }
+            ])
+        )
+
+
+def _check_expiry(plan: dict[str, Any], now: str | None = None) -> None:
+    """Reject expired plans (``expires_at`` in the past). Null means no expiry."""
+    import datetime as _dt
+
+    expires = plan.get("expires_at")
+    if not isinstance(expires, str) or not expires:
+        return
+    if now is None:
+        now = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        exp = _dt.datetime.fromisoformat(expires.replace("Z", "+00:00"))
+        current = _dt.datetime.fromisoformat(now.replace("Z", "+00:00"))
+    except ValueError:
+        raise PlanInvalid(
+            _apply_result("invalid-plan", [
+                {
+                    "code": "plan-expiry-unparseable",
+                    "level": "error",
+                    "message": f"expires_at is not a valid RFC 3339 timestamp: {expires!r}",
+                }
+            ])
+        ) from None
+    if exp.tzinfo is None or current.tzinfo is None:
+        raise PlanInvalid(
+            _apply_result("invalid-plan", [
+                {
+                    "code": "plan-expiry-naive",
+                    "level": "error",
+                    "message": "expires_at must carry an explicit timezone",
+                }
+            ])
+        )
+    if current >= exp:
+        raise PlanDrift(
+            _apply_result("drift", [
+                {
+                    "code": "plan-expired",
+                    "level": "error",
+                    "message": f"plan expired at {expires} (now {now}); replan",
+                }
+            ])
+        )
+
+
+_PATH_RE = None
+
+
+def _safe_join(repo: Path, rel: str) -> Path:
+    """Join and verify the path stays inside ``repo`` (no escape, no symlink).
+
+    Raises :class:`PlanInvalid` (path not allowed) or :class:`PlanDrift`
+    (parent is a symlink — the filesystem may have been tampered with).
+    """
+    global _PATH_RE
+    import re
+
+    if _PATH_RE is None:
+        _PATH_RE = re.compile(
+            r"^(?!\.{1,2}(?:/|$))(?!.*(?:^|/)\.{1,2}(?:/|$))"
+            r"[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+        )
+    if _PATH_RE.match(rel) is None:
+        raise PlanInvalid(
+            _apply_result("invalid-plan", [
+                {
+                    "code": "plan-path-invalid",
+                    "level": "error",
+                    "message": f"action path is not a safe relative path: {rel!r}",
+                }
+            ])
+        )
+    repo_resolved = repo.resolve()
+    target = repo / rel
+    # Every existing ancestor must be a real directory (no symlinks).
+    current = repo_resolved
+    for part in Path(rel).parts[:-1]:
+        current = current / part
+        if current.is_symlink():
+            raise PlanDrift(
+                _apply_result("drift", [
+                    {
+                        "code": "path-ancestor-symlink",
+                        "level": "error",
+                        "message": f"ancestor of {rel!r} is a symlink: refusing",
+                    }
+                ])
+            )
+        if current.exists() and not current.is_dir():
+            raise PlanInvalid(
+                _apply_result("invalid-plan", [
+                    {
+                        "code": "plan-path-invalid",
+                        "level": "error",
+                        "message": f"ancestor of {rel!r} exists and is not a directory",
+                    }
+                ])
+            )
+    if target.is_symlink():
+        raise PlanDrift(
+            _apply_result("drift", [
+                {
+                    "code": "path-is-symlink",
+                    "level": "error",
+                    "message": f"target {rel!r} is a symlink: refusing",
+                }
+            ])
+        )
+    resolved = target.resolve()
+    try:
+        resolved.relative_to(repo_resolved)
+    except ValueError:
+        raise PlanInvalid(
+            _apply_result("invalid-plan", [
+                {
+                    "code": "plan-path-escape",
+                    "level": "error",
+                    "message": f"action path escapes the repository: {rel!r}",
+                }
+            ])
+        ) from None
+    return target
+
+
+def _check_state_against_plan(repo: Path, plan: dict[str, Any]) -> None:
+    """Fail on drift: observed state must match the plan exactly."""
+    observed = observe_targets(repo)
+    head = head_revision(repo)
+    fingerprint_now = observed_fingerprint(observed, head)
+    planned_fingerprint = plan["observed_state"]["fingerprint"]
+    planned_files = plan["observed_state"].get("files", {})
+    problems: list[dict[str, Any]] = []
+    if fingerprint_now != planned_fingerprint:
+        changed = [
+            rel
+            for rel in TARGET_FILES
+            if observed.get(rel) != planned_files.get(rel)
+        ]
+        head_changed = plan["project"].get("head") != head
+        problems.append({
+            "code": "observed-state-drift",
+            "level": "error",
+            "message": (
+                "repository state changed after planning "
+                f"(files changed: {changed or 'none'}, head changed: {head_changed}); "
+                "replan with init-plan"
+            ),
+        })
+    for action in plan["actions"]:
+        rel = action["path"]
+        if rel not in plan["allowed_paths"]:
+            problems.append({
+                "code": "action-outside-allowed-paths",
+                "level": "error",
+                "message": f"action path {rel!r} is not in allowed_paths",
+            })
+    if problems:
+        raise PlanDrift(_apply_result("drift", problems))
+
+
+def _apply_actions(
+    repo: Path, plan: dict[str, Any], contents: dict[str, str]
+) -> list[str]:
+    """Write every action; raises on first unexpected state.
+
+    ``contents`` maps allowed path -> exact bytes (the template). The plan's
+    per-action digests MUST match those bytes: a plan whose content hashes
+    disagree with the canonical template is rejected, so init-apply cannot be
+    used as an arbitrary file writer.
+    """
+    allowed_digests = {
+        rel: sha256_digest(text) for rel, text in contents.items()
+    }
+    applied: list[str] = []
+    for action in plan["actions"]:
+        rel = action["path"]
+        target = _safe_join(repo, rel)
+        if action["kind"] != "create":
+            raise PlanInvalid(
+                _apply_result("invalid-plan", [
+                    {
+                        "code": "action-kind-unsupported",
+                        "level": "error",
+                        "message": f"init-apply only supports create (got {action['kind']!r})",
+                    }
+                ], applied=applied)
+            )
+        if action["content_sha256"] != allowed_digests.get(rel):
+            raise PlanInvalid(
+                _apply_result("invalid-plan", [
+                    {
+                        "code": "action-content-noncanonical",
+                        "level": "error",
+                        "message": (
+                            f"action for {rel!r} does not carry the canonical "
+                            "template digest; refusing arbitrary content"
+                        ),
+                    }
+                ], applied=applied)
+            )
+        if target.exists():
+            raise PlanDrift(
+                _apply_result("drift", [
+                    {
+                        "code": "create-target-exists",
+                        "level": "error",
+                        "message": f"target {rel!r} appeared after planning",
+                    }
+                ], applied=applied)
+            )
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(contents[rel], encoding="utf-8")
+        applied.append(action["action_id"])
+
+    # Postconditions: verify on disk immediately after writing.
+    for condition in plan["postconditions"]:
+        rel = condition["subject"]
+        if condition["kind"] != "file-sha256":
+            continue
+        target = _safe_join(repo, rel)
+        actual = _file_sha256(target)
+        if actual != condition["expected"]:
+            raise PlanDrift(
+                _apply_result("drift", [
+                    {
+                        "code": "postcondition-violated",
+                        "level": "error",
+                        "message": f"postcondition for {rel!r} not satisfied after write",
+                    }
+                ], applied=applied)
+            )
+    return applied
+
+
+def apply_init_plan(
+    repo: Path,
+    plan_path: Path,
+    expected_fingerprint: str,
+) -> tuple[dict[str, Any], int]:
+    """Apply a ``project-init`` mutation plan under full drift checking.
+
+    Returns ``(outcome, exit_code)``. Never silently overwrites: any drift,
+    unexpected path or existing target aborts before that action; earlier
+    completed actions in the SAME apply remain (reported in
+    ``applied_actions``) — the contract offers no transactional rollback, it
+    offers fail-closed refusal, and drift on a later action leaves the
+    repository in a state that the next ``init-plan`` will classify as
+    ``conflict``, which is the honest outcome.
+    """
+    repo = Path(repo)
+    if not repo.is_dir():
+        return (
+            _apply_result("usage", [
+                {"code": "repo-not-found", "level": "error",
+                 "message": f"repo not found: {repo}"}
+            ]),
+            2,
+        )
+    try:
+        plan = load_plan_file(Path(plan_path))
+        _check_operation(plan)
+        _check_fingerprint(plan, expected_fingerprint)
+        _check_expiry(plan)
+        _check_state_against_plan(repo, plan)
+        contents = _render_for_plan(plan)
+        applied = _apply_actions(repo, plan, contents)
+    except PlanRejected as exc:
+        outcome = exc.outcome
+        exit_code = {
+            "drift": APPLY_DRIFT,
+            "fingerprint-rejected": APPLY_DRIFT,
+        }.get(outcome.get("result", ""), APPLY_FAIL)
+        if outcome.get("result") in ("invalid-plan",):
+            exit_code = 2
+        return outcome, exit_code
+    outcome = _apply_result("applied", [], plan_fingerprint_value=plan["plan_fingerprint"], applied=applied)
+    return outcome, APPLY_PASS
+
+
+_KNOWN_PROFILES: tuple[str, ...] = (
+    "minimal",
+    "standard",
+    "high-assurance",
+    "regulated",
+)
+
+
+def _render_for_plan(plan: dict[str, Any]) -> dict[str, str]:
+    """Re-derive the exact template the plan committed to.
+
+    The plan carries ``content_sha256`` per action; init-apply refuses to be
+    an arbitrary file writer, so the rendered template must reproduce those
+    digests. The profile is not stored in the plan directly: try every known
+    profile and require exactly one to match the ``.praxis.toml`` digest.
+    Ambiguity is impossible (each profile string differs inside the config),
+    and no match means the plan is non-canonical and rejected.
+    """
+    project_id = plan["project"]["project_id"]
+    config_digest = next(
+        (
+            a["content_sha256"]
+            for a in plan["actions"]
+            if a["path"] == ".praxis.toml"
+        ),
+        None,
+    )
+    if config_digest is None:
+        raise PlanInvalid(
+            _apply_result("invalid-plan", [
+                {
+                    "code": "plan-missing-config-action",
+                    "level": "error",
+                    "message": "plan has no action for .praxis.toml",
+                }
+            ])
+        )
+    matches = [
+        profile
+        for profile in _KNOWN_PROFILES
+        if sha256_digest(render_config(project_id, profile)) == config_digest
+    ]
+    if not matches:
+        raise PlanInvalid(
+            _apply_result("invalid-plan", [
+                {
+                    "code": "plan-content-noncanonical",
+                    "level": "error",
+                    "message": (
+                        "plan .praxis.toml digest matches no canonical "
+                        "rendering for any known profile; refusing arbitrary content"
+                    ),
+                }
+            ])
+        )
+    return template_contents(project_id, matches[0])
+
+
 __all__ = [
+    "APPLY_DRIFT",
+    "APPLY_FAIL",
+    "APPLY_PASS",
     "INIT_PLAN_RESULT_SCHEMA_ID",
     "MUTATION_PLAN_SCHEMA_ID",
     "OPERATION",
     "REQUIRED_AUTHORITY",
     "STANDARD_VERSION",
     "TARGET_FILES",
+    "PlanDrift",
+    "PlanInvalid",
+    "PlanRejected",
     "TargetStateError",
+    "apply_init_plan",
     "build_init_plan",
     "classify_state",
     "git_remote",
     "jcs",
+    "load_plan_file",
     "observe_targets",
     "observed_fingerprint",
     "plan_fingerprint",

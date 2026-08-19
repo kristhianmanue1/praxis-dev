@@ -239,5 +239,291 @@ class CliInitPlanTests(unittest.TestCase):
             self.assertEqual(before, after)
 
 
+class ApplyRoundTripTests(unittest.TestCase):
+    """Full plan -> apply cycle and its adversarial paths."""
+
+    def _fresh_repo(self) -> Path:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        return Path(tmp.name)
+
+    def _plan_for(self, repo: Path, **kwargs) -> tuple[Path, str]:
+        plan_path = repo / "plan.json"
+        rc, out, _ = cli.run(
+            ["project", "init-plan", str(repo), "--output", str(plan_path), "--format", "json"]
+        )
+        self.assertEqual(rc, cli.EXIT_PASS)
+        envelope = json.loads(out)
+        return plan_path, envelope["plan_fingerprint"]
+
+    def _apply(self, repo: Path, plan_path: Path, fingerprint: str):
+        return cli.run(
+            [
+                "project", "init-apply", str(repo),
+                "--plan", str(plan_path),
+                "--expected-fingerprint", fingerprint,
+                "--format", "json",
+            ]
+        )
+
+    def test_happy_path_applies_exact_template_bytes(self) -> None:
+        repo = self._fresh_repo()
+        plan_path, fp = self._plan_for(repo)
+        rc, out, err = self._apply(repo, plan_path, fp)
+        self.assertEqual(rc, 0, err)
+        self.assertIn("applied", out)
+        import tomllib
+
+        config = tomllib.loads((repo / ".praxis.toml").read_text(encoding="utf-8"))
+        self.assertEqual(config["schema"], "praxis/project-config/v1")
+        for rel in mutation.TARGET_FILES:
+            self.assertTrue((repo / rel).is_file(), rel)
+
+    def test_second_apply_is_drift_exit_five(self) -> None:
+        repo = self._fresh_repo()
+        plan_path, fp = self._plan_for(repo)
+        self._apply(repo, plan_path, fp)
+        rc, out, _ = self._apply(repo, plan_path, fp)
+        self.assertEqual(rc, 5)
+        self.assertIn("drift", out)
+
+    def test_wrong_fingerprint_rejected_exit_five(self) -> None:
+        repo = self._fresh_repo()
+        plan_path, _ = self._plan_for(repo)
+        bogus = "sha256:" + "0" * 64
+        rc, out, _ = self._apply(repo, plan_path, bogus)
+        self.assertEqual(rc, 5)
+        self.assertIn("fingerprint-rejected", out)
+        # nothing was written
+        for rel in mutation.TARGET_FILES:
+            self.assertFalse((repo / rel).exists(), rel)
+
+    def test_drift_between_plan_and_apply_aborts(self) -> None:
+        repo = self._fresh_repo()
+        plan_path, fp = self._plan_for(repo)
+        (repo / "AGENTS.md").write_text("intruder\n", encoding="utf-8")
+        rc, out, _ = self._apply(repo, plan_path, fp)
+        self.assertEqual(rc, 5)
+        self.assertIn("drift", out)
+
+    def test_tampered_plan_body_fingerprint_mismatch(self) -> None:
+        repo = self._fresh_repo()
+        plan_path, fp = self._plan_for(repo)
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        plan["allowed_paths"].append("evil.sh")
+        plan_path.write_text(json.dumps(plan), encoding="utf-8")
+        rc, out, _ = self._apply(repo, plan_path, fp)
+        self.assertEqual(rc, 2)
+        self.assertIn("fingerprint", out)
+
+    def test_arbitrary_content_rejected(self) -> None:
+        repo = self._fresh_repo()
+        plan_path, fp = self._plan_for(repo)
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        # Forge payload: keep structure, replace content digest of a stub.
+        evil = "sha256:" + "e" * 64
+        for action in plan["actions"]:
+            if action["path"] == "POLICY.md":
+                action["content_sha256"] = evil
+        # recompute fingerprint to pass the fingerprint gate...
+        plan.pop("plan_fingerprint")
+        plan["plan_fingerprint"] = mutation.plan_fingerprint(plan)
+        plan_path.write_text(json.dumps(plan), encoding="utf-8")
+        rc, out, _ = self._apply(repo, plan_path, plan["plan_fingerprint"])
+        outcome = json.loads(out)
+        self.assertEqual(rc, 2)
+        self.assertIn("noncanonical", out)
+        # POLICY.md must not exist; earlier actions are honestly reported.
+        self.assertFalse((repo / "POLICY.md").exists())
+        applied = outcome.get("applied_actions", [])
+        self.assertIn("create-1-.praxis.toml", applied)
+        self.assertNotIn("create-3-POLICY.md", applied)
+
+    def test_path_escape_rejected(self) -> None:
+        repo = self._fresh_repo()
+        plan_path, fp = self._plan_for(repo)
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        plan["actions"][1]["path"] = "../outside.md"
+        plan["allowed_paths"].append("../outside.md")
+        plan.pop("plan_fingerprint")
+        plan["plan_fingerprint"] = mutation.plan_fingerprint(plan)
+        plan_path.write_text(json.dumps(plan), encoding="utf-8")
+        rc, out, _ = self._apply(repo, plan_path, plan["plan_fingerprint"])
+        self.assertEqual(rc, 2)
+        self.assertIn("invalid-plan", out)
+        self.assertFalse((repo.parent / "outside.md").exists())
+
+    def test_symlink_ancestor_refused(self) -> None:
+        repo = self._fresh_repo()
+        outside = tempfile.TemporaryDirectory()
+        self.addCleanup(outside.cleanup)
+        link_root = repo / "decisions"
+        link_root.symlink_to(Path(outside.name), target_is_directory=True)
+        plan_path, fp = self._plan_for(repo)  # observe follows no symlinks for digests
+        rc, out, _ = self._apply(repo, plan_path, fp)
+        # The symlinked dir must never receive our writes.
+        self.assertNotEqual(rc, 0)
+        self.assertEqual(sorted(p.name for p in Path(outside.name).iterdir()), [])
+
+    def test_symlink_target_refused(self) -> None:
+        repo = self._fresh_repo()
+        outside = tempfile.TemporaryDirectory()
+        self.addCleanup(outside.cleanup)
+        (repo / "POLICY.md").symlink_to(Path(outside.name) / "captured.md")
+        plan_path, fp = self._plan_for(repo)
+        rc, out, _ = self._apply(repo, plan_path, fp)
+        self.assertNotEqual(rc, 0)
+        self.assertFalse((Path(outside.name) / "captured.md").exists())
+
+    def test_unparseable_plan_is_usage_error(self) -> None:
+        repo = self._fresh_repo()
+        plan_path = repo / "plan.json"
+        plan_path.write_text("{not json", encoding="utf-8")
+        rc, out, _ = self._apply(repo, plan_path, "sha256:" + "0" * 64)
+        self.assertEqual(rc, 2)
+        self.assertIn("invalid-plan", out)
+
+    def test_duplicate_json_keys_rejected(self) -> None:
+        repo = self._fresh_repo()
+        plan_path = repo / "plan.json"
+        plan_path.write_text('{"a":1,"a":2}', encoding="utf-8")
+        rc, out, _ = self._apply(repo, plan_path, "sha256:" + "0" * 64)
+        self.assertEqual(rc, 2)
+
+    def test_missing_plan_file_is_rejected_cleanly(self) -> None:
+        repo = self._fresh_repo()
+        rc, out, _ = self._apply(repo, repo / "nope.json", "sha256:" + "0" * 64)
+        self.assertEqual(rc, 2)
+        self.assertIn("invalid-plan", out)
+
+    def test_wrong_operation_rejected(self) -> None:
+        repo = self._fresh_repo()
+        plan_path, fp = self._plan_for(repo)
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        plan["operation"] = "project-upgrade"
+        plan.pop("plan_fingerprint")
+        plan["plan_fingerprint"] = mutation.plan_fingerprint(plan)
+        plan_path.write_text(json.dumps(plan), encoding="utf-8")
+        rc, out, _ = self._apply(repo, plan_path, plan["plan_fingerprint"])
+        self.assertEqual(rc, 2)
+        self.assertIn("operation", out)
+
+    def test_apply_leaves_no_plan_inside_repo_targets(self) -> None:
+        # plan.json lives in repo but outside TARGET_FILES: allowed, and apply
+        # must not touch it beyond reading.
+        repo = self._fresh_repo()
+        plan_path, fp = self._plan_for(repo)
+        before = plan_path.read_bytes()
+        self._apply(repo, plan_path, fp)
+        self.assertEqual(plan_path.read_bytes(), before)
+
+    def test_usage_missing_flags(self) -> None:
+        repo = self._fresh_repo()
+        rc, _, _ = cli.run(["project", "init-apply", str(repo)])
+        self.assertEqual(rc, cli.EXIT_USAGE)
+        rc, _, _ = cli.run(["project", "init-apply", str(repo), "--plan", "x.json"])
+        self.assertEqual(rc, cli.EXIT_USAGE)
+        rc, _, _ = cli.run(
+            ["project", "init-apply", str(repo), "--plan", "x.json",
+             "--expected-fingerprint", "not-a-sha"]
+        )
+        self.assertEqual(rc, cli.EXIT_USAGE)
+
+
+class ProfileRoundTripTests(unittest.TestCase):
+    def test_non_default_profile_applies(self) -> None:
+        import tomllib
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            repo.mkdir()
+            # Plan for a standard-profile project by pre-rendering identity
+            # is not possible via CLI (uuid random); use the builder API.
+            plan, classification, _ = mutation.build_init_plan(
+                repo, project_id=PROJECT_ID, profile="standard", now=NOW
+            )
+            self.assertEqual(classification, "create")
+            plan_path = Path(tmp) / "plan.json"
+            plan_path.write_text(json.dumps(plan), encoding="utf-8")
+            rc, out, err = cli.run(
+                [
+                    "project", "init-apply", str(repo),
+                    "--plan", str(plan_path),
+                    "--expected-fingerprint", plan["plan_fingerprint"],
+                ]
+            )
+            self.assertEqual(rc, 0, err)
+            config = tomllib.loads((repo / ".praxis.toml").read_text(encoding="utf-8"))
+            self.assertEqual(config["profile"], "standard")
+
+
+class AdversarialRegressionTests(unittest.TestCase):
+    """Regression tests for attacks found in the adversarial round."""
+
+    PID = "4f352068-06ad-5ea5-98c3-c27e7b84d47e"
+
+    def _fresh_repo(self) -> Path:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        return Path(tmp.name)
+
+    def _plan_in(self, repo: Path, **overrides) -> tuple[Path, dict]:
+        plan, classification, _ = mutation.build_init_plan(
+            repo, project_id=self.PID, now=NOW
+        )
+        self.assertEqual(classification, "create")
+        plan.update(overrides)
+        plan.pop("plan_fingerprint")
+        plan["plan_fingerprint"] = mutation.plan_fingerprint(plan)
+        plan_path = repo / "plan.json"
+        plan_path.write_text(json.dumps(plan), encoding="utf-8")
+        return plan_path, plan
+
+    def test_expired_plan_rejected_as_drift(self) -> None:
+        repo = self._fresh_repo()
+        plan_path, plan = self._plan_in(repo, expires_at="2020-01-01T00:00:00Z")
+        outcome, code = mutation.apply_init_plan(repo, plan_path, plan["plan_fingerprint"])
+        self.assertEqual(code, 5)
+        self.assertEqual(outcome["diagnostics"][0]["code"], "plan-expired")
+        for rel in mutation.TARGET_FILES:
+            self.assertFalse((repo / rel).exists(), rel)
+
+    def test_manipulated_authority_rejected(self) -> None:
+        repo = self._fresh_repo()
+        plan_path, plan = self._plan_in(repo, required_authority="superuser-bypass")
+        outcome, code = mutation.apply_init_plan(repo, plan_path, plan["plan_fingerprint"])
+        self.assertEqual(code, 2)
+        self.assertEqual(outcome["diagnostics"][0]["code"], "plan-authority-unsupported")
+        for rel in mutation.TARGET_FILES:
+            self.assertFalse((repo / rel).exists(), rel)
+
+    def test_covert_path_traversal_rejected(self) -> None:
+        repo = self._fresh_repo()
+        plan, _, _ = mutation.build_init_plan(repo, project_id=self.PID, now=NOW)
+        for action in plan["actions"]:
+            if action["path"] == "POLICY.md":
+                action["path"] = "POLICY.md/../../evil.md"
+        plan["allowed_paths"].append("POLICY.md/../../evil.md")
+        plan.pop("plan_fingerprint")
+        plan["plan_fingerprint"] = mutation.plan_fingerprint(plan)
+        plan_path = repo / "plan.json"
+        plan_path.write_text(json.dumps(plan), encoding="utf-8")
+        outcome, code = mutation.apply_init_plan(repo, plan_path, plan["plan_fingerprint"])
+        self.assertNotEqual(code, 0)
+        self.assertFalse((repo / "evil.md").exists())
+        self.assertFalse((repo.parent / "evil.md").exists())
+
+    def test_naive_expiry_rejected_by_schema(self) -> None:
+        # A naive timestamp (no timezone) violates the schema's date-time
+        # format first; the runtime _check_expiry is defense in depth.
+        repo = self._fresh_repo()
+        plan_path, plan = self._plan_in(repo, expires_at="2020-01-01T00:00:00")
+        outcome, code = mutation.apply_init_plan(repo, plan_path, plan["plan_fingerprint"])
+        self.assertEqual(code, 2)
+        self.assertEqual(outcome["result"], "invalid-plan")
+        for rel in mutation.TARGET_FILES:
+            self.assertFalse((repo / rel).exists(), rel)
+
+
 if __name__ == "__main__":
     unittest.main()

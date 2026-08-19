@@ -47,15 +47,16 @@ roadmap ni inventario dinámico.
 
 ## Bootstrap F0
 
-El CLI de mutación gobernada todavía no aplica nada. Existe un CLI read-only:
-`praxis project status/audit/init-plan` y `praxis adr list/show/audit`
-(paquete `praxis_dev`, sin distribución publicada). `init-plan` emite un
-`praxis/mutation-plan/v1` con fingerprint RFC 8785, pero `init-apply` no
-existe: aplicar sigue siendo edición ordinaria autorizada por solicitud
-actual, revisada por diff y gates. Esto NO equivale a `plan/apply`, no
-permite transiciones protegidas y no debe presentarse como conformidad
-completa. Cuando el CLI implemente una operación gobernada, esta excepción
-deja de aplicar a esa operación.
+El CLI implementa el ciclo gobernado mínimo `init-plan`/`init-apply`:
+`praxis project status/audit/init-plan/init-apply` y `praxis adr
+list/show/audit` (paquete `praxis_dev`, sin distribución publicada).
+`init-apply` valida fingerprint exacto, drift y contenido canónico, y
+rechaza conflictos; no es transaccional: un rechazo tardío reporta las
+acciones ya aplicadas y el estado resultante se clasifica como `conflict`.
+Las transiciones protegidas (ADRG, autoridad) siguen sin existir y la
+excepción F0 de edición ordinaria por solicitud actual sólo aplica a las
+operaciones no gobernadas. Cuando el CLI implemente otra operación
+gobernada, esta excepción deja de aplicar a esa operación.
 
 ## Cierre mínimo
 

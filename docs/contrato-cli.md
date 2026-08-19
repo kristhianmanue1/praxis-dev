@@ -53,6 +53,11 @@ praxis project upgrade-apply <repo> --plan <plan> \
 
 `audit` clasifica hallazgos con evidencia y remediación. `init-plan` distingue
 `create`, `identical` y `conflict`; `init-apply` nunca sobrescribe conflictos.
+`init-apply` revalida el plan contra su schema, exige el fingerprint exacto
+declarado por el revisor, re-observa el estado (drift = código 5), rechaza
+paths fuera de `allowed_paths`, symlinks y contenido no canónico; no es
+transaccional: un rechazo tardío reporta las acciones ya aplicadas
+(`applied_actions`) y el estado resultante se reclasifica como `conflict`.
 
 ## 5. Policy y work
 

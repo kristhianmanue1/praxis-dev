@@ -80,6 +80,7 @@ from praxis_dev.adr import (
 from praxis_dev.mutation import (
     INIT_PLAN_RESULT_SCHEMA_ID,
     TargetStateError,
+    apply_init_plan,
     build_init_plan,
 )
 from praxis_dev.plan_schema import PLAN_SCHEMA
@@ -183,17 +184,19 @@ def _global_help_text() -> str:
 
 
 _PROJECT_HELP = """\
-praxis project — read-only project inspection and planning
+praxis project — read-only inspection and governed initialization
 
 Usage:
-    praxis project status     [repo] [--format json]
-    praxis project audit      [repo] [--profile <id>] [--format json]
-    praxis project init-plan  <repo> --output <plan> [--format json]
+    praxis project status      [repo] [--format json]
+    praxis project audit       [repo] [--profile <id>] [--format json]
+    praxis project init-plan   <repo> --output <plan> [--format json]
+    praxis project init-apply  <repo> --plan <plan> \
+--expected-fingerprint <sha256:...> [--format json]
 
-init-plan observes the repository read-only and writes a
-praxis/mutation-plan/v1 artifact for a later init-apply. It classifies the
-target set as create | identical | conflict and never overwrites: a plan is
-only written for create. --output must not already exist.
+init-plan observes read-only and writes a praxis/mutation-plan/v1 artifact
+(create | identical | conflict; a plan is only written for create).
+init-apply revalidates the plan, its fingerprint and the observed state,
+then writes exactly the planned bytes; any drift aborts with exit 5.
 """
 
 _ADR_HELP = """\
@@ -433,6 +436,69 @@ def _cmd_init_plan(args: list[str]) -> int:
     return EXIT_PASS
 
 
+def _parse_init_apply(args: list[str]) -> tuple[Path, Path, str, str]:
+    """Parse ``<repo> --plan <file> --expected-fingerprint <sha> [--format json]``."""
+    positionals: list[str] = []
+    plan: str | None = None
+    fingerprint: str | None = None
+    fmt = "human"
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token == "--format":
+            index += 1
+            if index >= len(args):
+                raise _Usage("missing value for --format")
+            if args[index] != "json":
+                raise _Usage("--format only supports 'json'")
+            fmt = "json"
+        elif token == "--plan":
+            index += 1
+            if index >= len(args):
+                raise _Usage("missing value for --plan")
+            plan = args[index]
+        elif token == "--expected-fingerprint":
+            index += 1
+            if index >= len(args):
+                raise _Usage("missing value for --expected-fingerprint")
+            fingerprint = args[index]
+        elif token.startswith("-") and token != "-":
+            raise _Usage(f"unknown option {token!r}")
+        else:
+            positionals.append(token)
+        index += 1
+    if len(positionals) != 1:
+        raise _Usage("init-apply requires exactly one repo argument")
+    if plan is None:
+        raise _Usage("init-apply requires --plan <file>")
+    if fingerprint is None:
+        raise _Usage("init-apply requires --expected-fingerprint <sha256:...>")
+    if not fingerprint.startswith("sha256:") or len(fingerprint) != len("sha256:") + 64:
+        raise _Usage("--expected-fingerprint must be sha256:<64 hex>")
+    return Path(positionals[0]), Path(plan), fingerprint, fmt
+
+
+def _cmd_init_apply(args: list[str]) -> int:
+    try:
+        repo, plan_path, fingerprint, fmt = _parse_init_apply(args)
+    except _Usage as exc:
+        return _fail_usage(str(exc))
+    if not repo.is_dir():
+        return _fail_usage(f"repo not found: {repo}")
+    outcome, exit_code = apply_init_plan(repo, plan_path, fingerprint)
+    if fmt == "json":
+        _emit_json(outcome)
+    else:
+        sys.stdout.write(f"praxis project init-apply: {outcome['result']}\n")
+        sys.stdout.flush()
+        for diag in outcome["diagnostics"]:
+            sys.stderr.write(f"# [{diag['level']}] {diag['code']}: {diag['message']}\n")
+        for action_id in outcome.get("applied_actions", []):
+            sys.stdout.write(f"  applied: {action_id}\n")
+        sys.stdout.flush()
+    return exit_code
+
+
 def _cmd_project(args: list[str]) -> int:
     if not args:
         return _fail_usage("project requires an operation (try: praxis project status)")
@@ -446,6 +512,8 @@ def _cmd_project(args: list[str]) -> int:
         return _cmd_audit(rest)
     if operation == "init-plan":
         return _cmd_init_plan(rest)
+    if operation == "init-apply":
+        return _cmd_init_apply(rest)
     return _fail_usage(f"unknown project operation {operation!r}")
 
 
