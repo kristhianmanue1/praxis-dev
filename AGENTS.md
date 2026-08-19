@@ -47,11 +47,15 @@ roadmap ni inventario dinámico.
 
 ## Bootstrap F0
 
-El CLI `praxis` todavía no existe. Durante F0, una solicitud actual puede
-autorizar ediciones ordinarias al working tree, que se revisan por diff y gates.
-Esto NO equivale a `plan/apply`, no permite transiciones protegidas y no debe
-presentarse como conformidad completa. Cuando el CLI implemente una operación
-gobernada, esta excepción deja de aplicar a esa operación.
+El CLI de mutación gobernada todavía no aplica nada. Existe un CLI read-only:
+`praxis project status/audit/init-plan` y `praxis adr list/show/audit`
+(paquete `praxis_dev`, sin distribución publicada). `init-plan` emite un
+`praxis/mutation-plan/v1` con fingerprint RFC 8785, pero `init-apply` no
+existe: aplicar sigue siendo edición ordinaria autorizada por solicitud
+actual, revisada por diff y gates. Esto NO equivale a `plan/apply`, no
+permite transiciones protegidas y no debe presentarse como conformidad
+completa. Cuando el CLI implemente una operación gobernada, esta excepción
+deja de aplicar a esa operación.
 
 ## Cierre mínimo
 

@@ -79,7 +79,8 @@ class BuildPyzTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
             )
-        self.assertEqual(no_args.returncode, 2)
+        self.assertEqual(no_args.returncode, 0)
+        self.assertIn("Usage:", no_args.stdout)
         self.assertEqual(bad_fmt.returncode, 2)
 
     def test_pyz_runs_adr_list_show_audit(self) -> None:

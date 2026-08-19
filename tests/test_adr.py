@@ -761,7 +761,7 @@ class NoMutationTests(unittest.TestCase):
 
 class ExitCodeTests(unittest.TestCase):
     def test_no_command(self) -> None:
-        self.assertEqual(cli.run([])[0], cli.EXIT_USAGE)
+        self.assertEqual(cli.run([])[0], cli.EXIT_PASS)
 
     def test_unknown_adr_operation(self) -> None:
         self.assertEqual(cli.run(["adr", "nope"])[0], cli.EXIT_USAGE)

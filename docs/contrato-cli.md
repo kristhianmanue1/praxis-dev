@@ -15,6 +15,10 @@ praxis <dominio> <operación> [objetivo] [opciones]
 ```
 
 - Salida humana a stdout; diagnósticos a stderr.
+- Sin argumentos, o con el verbo `help`, imprime el uso global en stdout y
+  sale con código 0.
+- `-h`/`--help` (global, por dominio o por operación) imprime uso en stdout y
+  sale con código 0; no consume otros argumentos.
 - `--format json` produce exclusivamente el objeto contractual en stdout.
 - Comandos read-only no escriben dentro del objetivo.
 - Rutas de salida se crean sólo cuando el usuario las proporciona.

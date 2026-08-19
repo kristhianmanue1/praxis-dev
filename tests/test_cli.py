@@ -202,8 +202,10 @@ class SchemaUnavailableTests(unittest.TestCase):
 
 
 class ExitCodeTests(unittest.TestCase):
-    def test_no_args(self) -> None:
-        self.assertEqual(cli.run([])[0], cli.EXIT_USAGE)
+    def test_no_args_shows_help(self) -> None:
+        rc, out, err = cli.run([])
+        self.assertEqual(rc, cli.EXIT_PASS)
+        self.assertIn("Usage:", out)
 
     def test_unknown_domain(self) -> None:
         self.assertEqual(cli.run(["nope"])[0], cli.EXIT_USAGE)
@@ -244,6 +246,69 @@ class JsonPurityTests(unittest.TestCase):
         obj = json.loads(out)
         self.assertIsInstance(obj, dict)
         self.assertEqual(obj["schema"], "praxis/project-status/v1")
+
+
+class HelpTests(unittest.TestCase):
+    def test_global_help_flag(self) -> None:
+        rc, out, err = cli.run(["--help"])
+        self.assertEqual(rc, cli.EXIT_PASS)
+        self.assertIn("Usage:", out)
+        self.assertIn("Domains:", out)
+
+    def test_global_help_short_flag(self) -> None:
+        rc, out, err = cli.run(["-h"])
+        self.assertEqual(rc, cli.EXIT_PASS)
+        self.assertIn("Usage:", out)
+
+    def test_project_domain_help(self) -> None:
+        rc, out, err = cli.run(["project", "--help"])
+        self.assertEqual(rc, cli.EXIT_PASS)
+        self.assertIn("praxis project status", out)
+
+    def test_adr_domain_help(self) -> None:
+        rc, out, err = cli.run(["adr", "-h"])
+        self.assertEqual(rc, cli.EXIT_PASS)
+        self.assertIn("praxis adr list", out)
+
+    def test_help_wins_over_operation(self) -> None:
+        rc, out, err = cli.run(["project", "status", "--help"])
+        self.assertEqual(rc, cli.EXIT_PASS)
+        self.assertIn("praxis project status", out)
+
+    def test_help_wins_without_operation(self) -> None:
+        rc, out, err = cli.run(["project", "--help"])
+        self.assertEqual(rc, cli.EXIT_PASS)
+        self.assertIn("Usage:", out)
+
+    def test_help_verb_shows_global_help(self) -> None:
+        rc, out, err = cli.run(["help"])
+        self.assertEqual(rc, cli.EXIT_PASS)
+        self.assertIn("Domains:", out)
+
+    def test_no_args_shows_global_help_on_stdout(self) -> None:
+        rc, out, err = cli.run([])
+        self.assertEqual(rc, cli.EXIT_PASS)
+        self.assertIn("Usage:", out)
+        self.assertEqual(err, "")
+
+    def test_help_goes_to_stdout_not_stderr(self) -> None:
+        rc, out, err = cli.run(["--help"])
+        self.assertEqual(rc, cli.EXIT_PASS)
+        self.assertIn("Usage:", out)
+        self.assertEqual(err, "")
+
+    def test_help_wins_over_incomplete_profile_flag(self) -> None:
+        rc, out, err = cli.run(["project", "audit", "--profile", "-h"])
+        self.assertEqual(rc, cli.EXIT_PASS)
+        self.assertIn("praxis project", out)
+
+    def test_global_help_lists_known_profiles(self) -> None:
+        from praxis_dev.project import KNOWN_PROFILES
+
+        rc, out, err = cli.run(["--help"])
+        self.assertEqual(rc, cli.EXIT_PASS)
+        for profile in KNOWN_PROFILES:
+            self.assertIn(profile, out)
 
 
 class NoMutationTests(unittest.TestCase):

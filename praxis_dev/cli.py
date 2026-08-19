@@ -2,11 +2,16 @@
 
 Grammar (per ``docs/contrato-cli.md``)::
 
-    praxis project status [repo] [--format json]
-    praxis project audit  [repo] [--profile <id>] [--format json]
-    praxis adr list  [repo] [--status <estado>] [--format json]
-    praxis adr show  [repo] <adr-id> [--format json]
-    praxis adr audit [repo] [--format json]
+    praxis [-h | --help]
+    praxis project [-h | --help] status [repo] [--format json]
+    praxis project [-h | --help] audit  [repo] [--profile <id>] [--format json]
+    praxis project [-h | --help] init-plan <repo> --output <plan> [--format json]
+    praxis adr [-h | --help] list  [repo] [--status <estado>] [--format json]
+    praxis adr [-h | --help] show  [repo] <adr-id> [--format json]
+    praxis adr [-h | --help] audit [repo] [--format json]
+
+``-h``/``--help`` may appear after the domain or operation token; it prints
+usage on stdout and exits 0 without consuming other arguments.
 
 Output contract
 ---------------
@@ -62,7 +67,9 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from praxis_dev import adr as adr_mod
+from praxis_dev import mutation as mutation_mod
 from praxis_dev import project as project_mod
+from praxis_dev import schema_validation as sv
 from praxis_dev.adr import (
     ADR_ID_PATTERN,
     ADR_STATUSES,
@@ -70,6 +77,12 @@ from praxis_dev.adr import (
     list_adrs,
     show_adr,
 )
+from praxis_dev.mutation import (
+    INIT_PLAN_RESULT_SCHEMA_ID,
+    TargetStateError,
+    build_init_plan,
+)
+from praxis_dev.plan_schema import PLAN_SCHEMA
 from praxis_dev.project import (
     EXIT_FAIL,
     EXIT_INCONCLUSIVE,
@@ -140,6 +153,73 @@ def _fail_usage(message: str) -> int:
     sys.stderr.write(f"praxis: error: {message}\n")
     sys.stderr.flush()
     return EXIT_USAGE
+
+
+def _global_help_text() -> str:
+    profiles = "|".join(sorted(KNOWN_PROFILES))
+    return (
+        "praxis — read-only CLI for the Praxis governance standard (F1)\n"
+        "\n"
+        "Usage:\n"
+        "    praxis <domain> <operation> [repo] [options]\n"
+        "\n"
+        "Domains:\n"
+        "    project    status, audit, init-plan\n"
+        "    adr        list, show, audit\n"
+        "\n"
+        "Options:\n"
+        "    -h, --help      show this help and exit (also per domain/operation)\n"
+        "    --format json   emit the contractual JSON payload on stdout\n"
+        "    --profile <id>  audit only: " + profiles + "\n"
+        "\n"
+        "Exit codes:\n"
+        "    0  pass / completed\n"
+        "    1  conformance failure\n"
+        "    2  usage / contract error\n"
+        "    3  inconclusive (environment)\n"
+        "\n"
+        "No command writes to the target repository. See docs/contrato-cli.md.\n"
+    )
+
+
+_PROJECT_HELP = """\
+praxis project — read-only project inspection and planning
+
+Usage:
+    praxis project status     [repo] [--format json]
+    praxis project audit      [repo] [--profile <id>] [--format json]
+    praxis project init-plan  <repo> --output <plan> [--format json]
+
+init-plan observes the repository read-only and writes a
+praxis/mutation-plan/v1 artifact for a later init-apply. It classifies the
+target set as create | identical | conflict and never overwrites: a plan is
+only written for create. --output must not already exist.
+"""
+
+_ADR_HELP = """\
+praxis adr — read-only ADR inspection
+
+Usage:
+    praxis adr list  [repo] [--status <estado>] [--format json]
+    praxis adr show  [repo] <adr-id> [--format json]
+    praxis adr audit [repo] [--format json]
+
+ADR ids follow the ADR-NNNN pattern.
+"""
+
+
+def _emit_help(text: str) -> int:
+    sys.stdout.write(text)
+    sys.stdout.flush()
+    return EXIT_PASS
+
+
+def _split_help(args: list[str]) -> tuple[bool, list[str]]:
+    """Strip a leading -h/--help flag; return (wants_help, rest)."""
+    rest = [a for a in args if a in ("-h", "--help")]
+    if not rest:
+        return False, args
+    return True, [a for a in args if a not in ("-h", "--help")]
 
 
 # --------------------------------------------------------------------------- #
@@ -225,14 +305,147 @@ def _cmd_audit(args: list[str]) -> int:
     return exit_code
 
 
+def _parse_init_plan(args: list[str]) -> tuple[Path, Path, str]:
+    """Parse ``<repo> --output <plan> [--format json]``.
+
+    Returns ``(repo, output_path, format)``; raises :class:`_Usage`.
+    """
+    positionals: list[str] = []
+    output: str | None = None
+    fmt = "human"
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token == "--format":
+            index += 1
+            if index >= len(args):
+                raise _Usage("missing value for --format")
+            if args[index] != "json":
+                raise _Usage("--format only supports 'json'")
+            fmt = "json"
+        elif token == "--output":
+            index += 1
+            if index >= len(args):
+                raise _Usage("missing value for --output")
+            output = args[index]
+        elif token.startswith("-") and token != "-":
+            raise _Usage(f"unknown option {token!r}")
+        else:
+            positionals.append(token)
+        index += 1
+    if len(positionals) != 1:
+        raise _Usage("init-plan requires exactly one repo argument")
+    if output is None:
+        raise _Usage("init-plan requires --output <plan>")
+    return Path(positionals[0]), Path(output), fmt
+
+
+def _cmd_init_plan(args: list[str]) -> int:
+    try:
+        repo, output, fmt = _parse_init_plan(args)
+    except _Usage as exc:
+        return _fail_usage(str(exc))
+    if not repo.is_dir():
+        return _fail_usage(f"repo not found: {repo}")
+    if output.exists():
+        return _fail_usage(f"output path already exists: {output}")
+    try:
+        plan, classification, _contents = build_init_plan(repo)
+    except TargetStateError as exc:
+        sys.stderr.write(f"praxis: inconclusive: {exc}\n")
+        sys.stderr.flush()
+        return EXIT_INCONCLUSIVE
+
+    envelope: dict[str, Any] = {
+        "schema": INIT_PLAN_RESULT_SCHEMA_ID,
+        "tool_version": project_mod.TOOL_VERSION,
+        "result": classification,
+        "diagnostics": [],
+    }
+    if classification == "conflict":
+        # init never overwrites: there is no valid plan to offer.
+        envelope["diagnostics"] = [
+            {
+                "code": "init-targets-conflict",
+                "level": "error",
+                "message": "one or more target paths already exist with "
+                           "unexpected content; init never overwrites",
+            }
+        ]
+        if fmt == "json":
+            _emit_json(envelope)
+        else:
+            sys.stdout.write("praxis project init-plan: conflict\n")
+            sys.stdout.flush()
+        return EXIT_FAIL
+
+    if classification == "identical":
+        envelope["diagnostics"] = [
+            {
+                "code": "init-targets-identical",
+                "level": "info",
+                "message": "every target path already matches the template",
+            }
+        ]
+        if fmt == "json":
+            _emit_json(envelope)
+        else:
+            sys.stdout.write("praxis project init-plan: identical\n")
+            sys.stdout.flush()
+        return EXIT_PASS
+
+    # classification == "create": validate the plan against the embedded
+    # schema (fail-closed) before offering it.
+    diagnostics = sv.validate(plan, PLAN_SCHEMA)
+    if diagnostics:
+        for diag in diagnostics:
+            envelope["diagnostics"].append(
+                {"code": f"plan-{diag.code}", "level": "error", "message": diag.message}
+            )
+        if fmt == "json":
+            _emit_json(envelope)
+        else:
+            sys.stdout.write("praxis project init-plan: invalid plan\n")
+            sys.stdout.flush()
+        return EXIT_INCONCLUSIVE
+
+    envelope["operation_id"] = plan["operation_id"]
+    envelope["plan_fingerprint"] = plan["plan_fingerprint"]
+    envelope["plan_path"] = str(output)
+    try:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(
+            json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+    except OSError as exc:
+        sys.stderr.write(f"praxis: inconclusive: cannot write plan: {exc}\n")
+        sys.stderr.flush()
+        return EXIT_INCONCLUSIVE
+    if fmt == "json":
+        _emit_json(envelope)
+    else:
+        sys.stdout.write(
+            f"praxis project init-plan: create "
+            f"(operation={plan['operation_id']}, fingerprint={plan['plan_fingerprint']}, "
+            f"plan={output})\n"
+        )
+        sys.stdout.flush()
+    return EXIT_PASS
+
+
 def _cmd_project(args: list[str]) -> int:
     if not args:
-        return _fail_usage("project requires an operation")
+        return _fail_usage("project requires an operation (try: praxis project status)")
+    wants_help, args = _split_help(args)
+    if wants_help:
+        return _emit_help(_PROJECT_HELP)
     operation, rest = args[0], args[1:]
     if operation == "status":
         return _cmd_status(rest)
     if operation == "audit":
         return _cmd_audit(rest)
+    if operation == "init-plan":
+        return _cmd_init_plan(rest)
     return _fail_usage(f"unknown project operation {operation!r}")
 
 
@@ -374,7 +587,10 @@ def _cmd_adr_audit(args: list[str]) -> int:
 
 def _cmd_adr(args: list[str]) -> int:
     if not args:
-        return _fail_usage("adr requires an operation")
+        return _fail_usage("adr requires an operation (try: praxis adr list)")
+    wants_help, args = _split_help(args)
+    if wants_help:
+        return _emit_help(_ADR_HELP)
     operation, rest = args[0], args[1:]
     if operation == "list":
         return _cmd_adr_list(rest)
@@ -389,8 +605,10 @@ def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns the process exit code."""
     args = list(sys.argv[1:]) if argv is None else list(argv)
     if not args:
-        return _fail_usage("no command given (try: praxis project status)")
+        return _emit_help(_global_help_text())
     domain, rest = args[0], args[1:]
+    if domain in ("-h", "--help", "help"):
+        return _emit_help(_global_help_text())
     if domain == "project":
         return _cmd_project(rest)
     if domain == "adr":

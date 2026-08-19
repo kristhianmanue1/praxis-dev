@@ -67,8 +67,11 @@ Praxis Dev
 
 ## Verificación local
 
-Esta fase no implementa todavía el CLI de producto `praxis`. El repositorio se
-autoverifica con Python estándar:
+Existe un CLI read-only parcial en el paquete `praxis_dev` (sin distribución
+publicada): `python3.12 -m praxis_dev project status|audit` y
+`python3.12 -m praxis_dev adr list|show|audit`. La mutación gobernada
+(`plan/apply`) aún no está implementada. El repositorio se autoverifica con
+Python estándar:
 
 ```bash
 python3.12 scripts/check_repo.py
