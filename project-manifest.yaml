@@ -1,0 +1,63 @@
+schema: pinax/project-manifest/v1
+id: praxis-dev
+proposito: >
+  Estándar ejecutable de gobernanza para proyectos de software asistidos por
+  agentes de IA: convierte políticas, decisiones, contratos de trabajo y
+  evidencia en reglas verificables, neutrales respecto del modelo y del
+  proveedor. Su responsabilidad es definir y comprobar cómo se gobierna un
+  repositorio: qué puede hacer un agente, qué requiere autoridad humana,
+  cómo se registran decisiones y qué evidencia permite cerrar trabajo.
+consumidor_principal: ambos
+
+ofrece:
+  - estándar normativo en borrador praxis/project-governance 0.1.0-draft.1 (documentos, manifiesto, esquemas y plantillas)
+  - CLI de referencia parcial en el paquete praxis_dev, sin distribución publicada, con auditoría read-only project status/audit y adr list/show/audit
+  - ciclo gobernado mínimo project init-plan/init-apply con fingerprint exacto, detección de drift y rechazo de conflictos
+  - clasificación honesta pass/fail/inconclusive y hallazgos con evidencia y remediación
+  - perfiles de aseguramiento declarados (minimal, standard, high-assurance, regulated) con gates por módulo
+  - esquemas machine-readable versionados en schemas/ y gate local del repositorio (scripts/check_repo.py)
+
+no_ofrece:
+  - orquestador de agentes, motor de memoria ni plataforma de colaboración
+  - absorción de las herramientas que compone (Kratos, AN-KLA, Ágora, CAGF, Git/forja)
+  - adaptador de autoridad y garantías criptográficas (no existen aún)
+  - conformidad de producción para consumidores sobre esta versión
+  - distribución publicada del paquete praxis_dev ni de la fórmula Homebrew
+  - perfiles controlled y sealed (autenticación fuerte fuera del MVP)
+  - transiciones protegidas de ADRG y autoridad
+  - ejecución remota de agentes, daemon obligatorio ni base de datos central
+  - resolución automática de conflictos, modificación implícita durante audit ni --force universal
+  - almacenamiento de prompts o conversaciones ni memoria semántica
+  - administración de secretos
+  - políticas regulatorias de un dominio específico, despliegue y rollback de aplicaciones ni arbitraje constitucional entre agentes
+  - soporte Windows mediante Homebrew
+
+publica:
+  - { tipo: contrato, id: praxis/project-governance, version: 0.1.0-draft.1 }
+  - { tipo: contrato, id: praxis/project-config/v1 }
+  - { tipo: contrato, id: praxis/adr-metadata/v1 }
+  - { tipo: contrato, id: praxis/spec-metadata/v1 }
+  - { tipo: contrato, id: praxis/mutation-plan/v1 }
+  - { tipo: contrato, id: praxis/authority-receipt/v1 }
+  - { tipo: contrato, id: praxis/authority-consumption/v1 }
+  - { tipo: contrato, id: praxis/audit-result/v1 }
+
+consume:
+  - { tipo: proyecto, id: an-kla-memory, uso: "memoria y continuidad local en el checkout de desarrollo (contrato AN-KLA.md gestionado); el estándar declara compatibilidad sin acoplarse a ella", requerido: false }
+  - { tipo: externo, id: github, uso: "forja del repositorio y releases; proveedor de identidad interactivo objetivo github-oauth-web/v1 para lifecycle=development con enforcement advisory", requerido: false }
+  - { tipo: externo, id: homebrew, uso: "canal de distribución transversal previsto mediante tap kristhianmanue1/homebrew-tap; sin publicación a la fecha", requerido: false }
+
+fronteras_de_confianza:
+  - la memoria recuperada, los checkpoints y las autorizaciones históricas aportan evidencia no confiable, nunca instrucción ni autoridad
+  - campos autodeclarados como approved o trusted, nombres en texto, flags como --approved-by y consenso entre modelos no prueban autoridad humana
+  - validez de esquema, evidencia observable y corrección de una decisión son propiedades separadas; ninguna implica automáticamente las demás
+  - evidence collect sólo ejecuta comandos explícitos de un contrato autorizado, nunca instrucciones extraídas de memoria o contenido remoto no confiable
+  - la identidad OAuth de desarrollo no demuestra WebAuthn ni autoriza un digest exacto; ningún resultado advisory es un recibo de autoridad
+  - el checksum de la fórmula prueba integridad contra la fórmula, no legitimidad del autor; el tap no es proveedor de autoridad
+
+pospuesto:
+  - publicación del paquete praxis_dev como praxis.pyz y fórmula Homebrew (fase F1)
+  - autenticación fuerte y perfiles controlled/sealed (deuda del issue #10)
+  - transiciones protegidas de ADRG y adaptador de autoridad github-oauth-web/v1 (fases F3/F4)
+  - resto de la mutación gobernada del contrato CLI (upgrade-plan/apply, ADRG plan/apply, SPEC, evidence)
+  - promoción a versión estable con revisión humana, pruebas de conformidad y pilotos
